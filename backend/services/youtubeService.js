@@ -76,6 +76,9 @@ async function extractWithYtDlp(url) {
             throw new Error('No audio stream found');
         }
 
+        // Reset failure count on success
+        failureCount = 0;
+
         return {
             title: info.title || 'Unknown Title',
             channel: info.uploader || info.channel || 'Unknown Channel',
@@ -87,6 +90,20 @@ async function extractWithYtDlp(url) {
         };
     } catch (error) {
         console.error('[yt-dlp] Extraction failed:', error.message);
+
+        // Check if error is due to bot detection or cookies
+        const errorMsg = error.message.toLowerCase();
+        const isBotError = errorMsg.includes('sign in') ||
+            errorMsg.includes('bot') ||
+            errorMsg.includes('cookies') ||
+            errorMsg.includes('confirm you');
+
+        if (isBotError) {
+            console.warn('[yt-dlp] Bot detection triggered, switching to Cobalt API');
+            currentMode = 'cobalt';
+            throw new Error('YouTube bot detection - switching to Cobalt API fallback');
+        }
+
         throw new Error(`yt-dlp failed: ${error.message}`);
     }
 }
