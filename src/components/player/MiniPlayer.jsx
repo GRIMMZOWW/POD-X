@@ -1,0 +1,178 @@
+import { useEffect, useState, useRef } from 'react';
+import usePlayerStore from '../../store/playerStore';
+import { Play, Pause, Volume2, X } from 'lucide-react';
+
+export default function MiniPlayer() {
+    const {
+        currentTrack,
+        isPlaying,
+        currentTime,
+        duration,
+        volume,
+        togglePlay,
+        seekTo,
+        setVolume,
+        clearTrack
+    } = usePlayerStore();
+
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragTime, setDragTime] = useState(0);
+
+    // Handle keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (!currentTrack) return;
+
+            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                togglePlay();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentTrack, togglePlay]);
+
+    if (!currentTrack) return null;
+
+    const handleSeekStart = (e) => {
+        setIsDragging(true);
+        setDragTime(parseFloat(e.target.value));
+    };
+
+    const handleSeekMove = (e) => {
+        if (isDragging) {
+            setDragTime(parseFloat(e.target.value));
+        }
+    };
+
+    const handleSeekEnd = (e) => {
+        const newTime = parseFloat(e.target.value);
+        setDragTime(newTime);
+        seekTo(newTime);
+        setIsDragging(false);
+    };
+
+    const handleClose = () => {
+        clearTrack();
+    };
+
+    const formatTime = (seconds) => {
+        if (isNaN(seconds) || seconds < 0) return "0:00";
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Use dragTime while dragging, otherwise use currentTime
+    const displayTime = isDragging ? dragTime : currentTime;
+    const progress = duration > 0 ? (displayTime / duration) * 100 : 0;
+
+    return (
+        <div className="fixed bottom-16 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 p-4 z-50 shadow-2xl">
+            <div className="max-w-4xl mx-auto flex items-center gap-4">
+                {/* Thumbnail */}
+                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
+                    {currentTrack.thumbnail_url ? (
+                        <img
+                            src={currentTrack.thumbnail_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-600">
+                            <Volume2 size={20} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                    <h4 className="text-white text-sm font-medium truncate">
+                        {currentTrack.title}
+                    </h4>
+                    <p className="text-gray-400 text-xs truncate">
+                        {currentTrack.channel_name || currentTrack.artist}
+                    </p>
+                </div>
+
+                {/* Progress Bar - Desktop */}
+                <div className="hidden md:flex flex-1 items-center gap-3 min-w-[200px]">
+                    <span className="text-xs text-gray-400 w-10 text-right font-mono">
+                        {formatTime(displayTime)}
+                    </span>
+
+                    <input
+                        type="range"
+                        min={0}
+                        max={duration || 100}
+                        value={displayTime}
+                        onMouseDown={handleSeekStart}
+                        onInput={handleSeekMove}
+                        onMouseUp={handleSeekEnd}
+                        onChange={(e) => e.preventDefault()} // Prevent default onChange
+                        className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer 
+                     accent-[#6B46C1] hover:h-2 transition-all"
+                        style={{
+                            background: `linear-gradient(to right, #6B46C1 ${progress}%, #374151 ${progress}%)`
+                        }}
+                    />
+
+                    <span className="text-xs text-gray-400 w-10 font-mono">
+                        {formatTime(duration)}
+                    </span>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={togglePlay}
+                        className="w-10 h-10 rounded-full bg-[#6B46C1] hover:bg-[#7c4ddb] 
+                     text-white flex items-center justify-center transition-colors
+                     focus:outline-none focus:ring-2 focus:ring-[#6B46C1] focus:ring-offset-2 
+                     focus:ring-offset-[#1E1E1E]"
+                    >
+                        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                    </button>
+
+                    <button
+                        onClick={handleClose}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 
+                     rounded-full transition-colors ml-2"
+                        title="Close player"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Mobile Progress */}
+            <div className="md:hidden mt-3 flex items-center gap-3">
+                <span className="text-xs text-gray-400 w-10 text-right font-mono">
+                    {formatTime(displayTime)}
+                </span>
+
+                <input
+                    type="range"
+                    min={0}
+                    max={duration || 100}
+                    value={displayTime}
+                    onMouseDown={handleSeekStart}
+                    onTouchStart={handleSeekStart}
+                    onInput={handleSeekMove}
+                    onMouseUp={handleSeekEnd}
+                    onTouchEnd={handleSeekEnd}
+                    onChange={(e) => e.preventDefault()}
+                    className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#6B46C1]"
+                    style={{
+                        background: `linear-gradient(to right, #6B46C1 ${progress}%, #374151 ${progress}%)`
+                    }}
+                />
+
+                <span className="text-xs text-gray-400 w-10 font-mono">
+                    {formatTime(duration)}
+                </span>
+            </div>
+        </div>
+    );
+}
