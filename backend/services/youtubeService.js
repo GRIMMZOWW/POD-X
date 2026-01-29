@@ -1,8 +1,7 @@
 const youtubedl = require('youtube-dl-exec');
 
-// Fallback modes: cobalt (API-based, works in production) -> ytdlp (requires binary) -> mock
-// Default to cobalt for production since it doesn't require yt-dlp binary installation
-let currentMode = process.env.YOUTUBE_MODE || 'cobalt';
+// Use Invidious API as primary (free, no rate limits, works in production)
+let currentMode = process.env.YOUTUBE_MODE || 'invidious';
 let failureCount = 0;
 
 // Mock data for development/fallback
@@ -14,9 +13,16 @@ const MOCK_DATA = {
     streamUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
 };
 
+// Invidious instances (public YouTube API proxies)
+const INVIDIOUS_INSTANCES = [
+    'https://inv.nadeko.net',
+    'https://invidious.jing.rocks',
+    'https://invidious.privacyredirect.com',
+];
+
 /**
  * Extract YouTube metadata and stream URL
- * Implements fallback: Cobalt API -> yt-dlp -> Mock
+ * Implements fallback: Invidious API -> Cobalt API -> Mock
  */
 async function extractYouTubeData(url) {
     console.log(`[YouTube Service] Extracting: ${url} (Mode: ${currentMode})`);
@@ -27,7 +33,9 @@ async function extractYouTubeData(url) {
     }
 
     try {
-        if (currentMode === 'cobalt') {
+        if (currentMode === 'invidious') {
+            return await extractWithInvidious(url);
+        } else if (currentMode === 'cobalt') {
             return await extractWithCobalt(url);
         } else if (currentMode === 'ytdlp') {
             return await extractWithYtDlp(url);
@@ -40,7 +48,11 @@ async function extractYouTubeData(url) {
         // Implement fallback logic
         failureCount++;
 
-        if (currentMode === 'cobalt') {
+        if (currentMode === 'invidious') {
+            console.warn('[YouTube Service] Invidious failed, trying Cobalt API');
+            currentMode = 'cobalt';
+            return extractYouTubeData(url);
+        } else if (currentMode === 'cobalt') {
             console.warn('[YouTube Service] Cobalt failed, trying yt-dlp');
             currentMode = 'ytdlp';
             return extractYouTubeData(url);
@@ -52,6 +64,75 @@ async function extractYouTubeData(url) {
 
         throw error;
     }
+}
+
+/**
+ * Extract using Invidious API (free YouTube proxy)
+ * Works without requiring any binaries - perfect for production
+ */
+async function extractWithInvidious(url) {
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+        throw new Error('Could not extract video ID');
+    }
+
+    console.log('[Invidious] Attempting extraction for:', videoId);
+
+    // Try multiple instances in case one is down
+    for (const instance of INVIDIOUS_INSTANCES) {
+        try {
+            const apiUrl = `${instance}/api/v1/videos/${videoId}`;
+            console.log('[Invidious] Trying instance:', instance);
+
+            const response = await fetch(apiUrl, {
+                headers: {
+                    'User-Agent': 'POD-X/1.0',
+                },
+            });
+
+            if (!response.ok) {
+                console.warn(`[Invidious] Instance ${instance} returned ${response.status}`);
+                continue; // Try next instance
+            }
+
+            const data = await response.json();
+            console.log('[Invidious] Success! Got video data');
+
+            // Find best audio format
+            const audioFormats = data.adaptiveFormats?.filter(f =>
+                f.type?.includes('audio')
+            ) || [];
+
+            if (audioFormats.length === 0) {
+                console.warn('[Invidious] No audio formats found');
+                continue;
+            }
+
+            // Get highest quality audio
+            const bestAudio = audioFormats.sort((a, b) =>
+                (b.bitrate || 0) - (a.bitrate || 0)
+            )[0];
+
+            // Reset failure count on success
+            failureCount = 0;
+
+            return {
+                title: data.title || 'Unknown Title',
+                channel: data.author || 'Unknown Channel',
+                duration: data.lengthSeconds || 0,
+                thumbnail: data.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+                streamUrl: bestAudio.url,
+                videoId: videoId,
+                description: data.description?.substring(0, 200) || '',
+            };
+
+        } catch (error) {
+            console.warn(`[Invidious] Instance ${instance} failed:`, error.message);
+            continue; // Try next instance
+        }
+    }
+
+    throw new Error('All Invidious instances failed');
 }
 
 /**
@@ -201,7 +282,7 @@ function isValidYouTubeUrl(url) {
  * Extract video ID from URL
  */
 function extractVideoId(url) {
-    const match = url.match(/(?:v=|\/)([\w-]{11})/);
+    const match = url.match(/(?:v=|\/)([\ w-]{11})/);
     return match ? match[1] : null;
 }
 
@@ -224,7 +305,7 @@ function getCurrentMode() {
  * Manually set extraction mode
  */
 function setMode(mode) {
-    if (['ytdlp', 'cobalt', 'mock'].includes(mode)) {
+    if (['invidious', 'ytdlp', 'cobalt', 'mock'].includes(mode)) {
         currentMode = mode;
         failureCount = 0;
         console.log(`[YouTube Service] Mode set to: ${mode}`);
