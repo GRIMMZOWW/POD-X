@@ -1,7 +1,8 @@
 const youtubedl = require('youtube-dl-exec');
 
-// Fallback modes: ytdlp -> cobalt -> mock
-let currentMode = process.env.YOUTUBE_MODE || 'ytdlp';
+// Fallback modes: cobalt (API-based, works in production) -> ytdlp (requires binary) -> mock
+// Default to cobalt for production since it doesn't require yt-dlp binary installation
+let currentMode = process.env.YOUTUBE_MODE || 'cobalt';
 let failureCount = 0;
 
 // Mock data for development/fallback
@@ -15,7 +16,7 @@ const MOCK_DATA = {
 
 /**
  * Extract YouTube metadata and stream URL
- * Implements fallback: yt-dlp -> Cobalt API -> Mock
+ * Implements fallback: Cobalt API -> yt-dlp -> Mock
  */
 async function extractYouTubeData(url) {
     console.log(`[YouTube Service] Extracting: ${url} (Mode: ${currentMode})`);
@@ -26,10 +27,10 @@ async function extractYouTubeData(url) {
     }
 
     try {
-        if (currentMode === 'ytdlp') {
-            return await extractWithYtDlp(url);
-        } else if (currentMode === 'cobalt') {
+        if (currentMode === 'cobalt') {
             return await extractWithCobalt(url);
+        } else if (currentMode === 'ytdlp') {
+            return await extractWithYtDlp(url);
         } else {
             return getMockData(url);
         }
@@ -39,12 +40,12 @@ async function extractYouTubeData(url) {
         // Implement fallback logic
         failureCount++;
 
-        if (failureCount >= 2 && currentMode === 'ytdlp') {
-            console.warn('[YouTube Service] Switching to Cobalt API fallback');
-            currentMode = 'cobalt';
+        if (currentMode === 'cobalt') {
+            console.warn('[YouTube Service] Cobalt failed, trying yt-dlp');
+            currentMode = 'ytdlp';
             return extractYouTubeData(url);
-        } else if (currentMode === 'cobalt') {
-            console.warn('[YouTube Service] Switching to Mock mode');
+        } else if (currentMode === 'ytdlp') {
+            console.warn('[YouTube Service] yt-dlp failed, switching to Mock mode');
             currentMode = 'mock';
             return getMockData(url);
         }
@@ -110,9 +111,12 @@ async function extractWithYtDlp(url) {
 
 /**
  * Extract using Cobalt API (fallback)
+ * Works without requiring yt-dlp binary - perfect for production
  */
 async function extractWithCobalt(url) {
     try {
+        console.log('[Cobalt] Attempting extraction...');
+
         const response = await fetch('https://api.cobalt.tools/api/json', {
             method: 'POST',
             headers: {
@@ -123,27 +127,45 @@ async function extractWithCobalt(url) {
                 url: url,
                 isAudioOnly: true,
                 aFormat: 'mp3',
+                filenamePattern: 'basic',
             }),
         });
 
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[Cobalt] API error:', response.status, errorText);
             throw new Error(`Cobalt API returned ${response.status}`);
         }
 
         const data = await response.json();
+        console.log('[Cobalt] Response:', JSON.stringify(data).substring(0, 200));
 
-        if (data.status !== 'success' && data.status !== 'stream') {
-            throw new Error('Cobalt extraction failed');
+        // Cobalt API returns different response formats
+        let audioUrl = null;
+
+        if (data.status === 'stream' || data.status === 'success') {
+            audioUrl = data.url;
+        } else if (data.url) {
+            audioUrl = data.url;
         }
 
-        // Cobalt returns audio URL directly
+        if (!audioUrl) {
+            console.error('[Cobalt] No audio URL in response:', data);
+            throw new Error('Cobalt extraction failed - no audio URL');
+        }
+
+        const videoId = extractVideoId(url);
+
+        // Reset failure count on success
+        failureCount = 0;
+
         return {
-            title: extractTitleFromUrl(url),
+            title: data.title || extractTitleFromUrl(url),
             channel: 'YouTube',
             duration: 0, // Cobalt doesn't provide duration
-            thumbnail: `https://img.youtube.com/vi/${extractVideoId(url)}/maxresdefault.jpg`,
-            streamUrl: data.url,
-            videoId: extractVideoId(url),
+            thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+            streamUrl: audioUrl,
+            videoId: videoId,
             description: '',
         };
     } catch (error) {
