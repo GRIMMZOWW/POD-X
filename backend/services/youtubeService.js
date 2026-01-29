@@ -1,4 +1,5 @@
 const youtubedl = require('youtube-dl-exec');
+const fetch = require('node-fetch');
 
 // Use Invidious API as primary (free, no rate limits, works in production)
 let currentMode = process.env.YOUTUBE_MODE || 'invidious';
