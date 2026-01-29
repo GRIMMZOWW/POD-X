@@ -23,30 +23,28 @@ export async function saveToLibrary(track) {
         const existing = await db.content.where('videoId').equals(track.id).first();
 
         if (existing) {
-            // Update existing entry
+            // Update existing entry with ALL new data
             await db.content.update(existing.id, {
+                ...track,
+                id: existing.id, // Keep the DB id
+                videoId: track.id, // Ensure videoId is set
                 last_played: new Date().toISOString(),
             });
             console.log('[IndexedDB] Updated existing content:', track.title);
             return existing.id;
         } else {
-            // Add new entry
+            // Add new entry with ALL track data
             const id = await db.content.add({
-                videoId: track.id,
-                title: track.title,
-                description: track.description || '',
-                channel_name: track.channel_name || '',
-                thumbnail_url: track.thumbnail_url || '',
-                source_url: track.source_url || '',
-                stream_url: track.stream_url || '',
+                ...track, // Spread all properties from track
+                videoId: track.id, // Ensure videoId is set
                 type: track.type || 'youtube',
                 mode: track.mode || 'stream',
-                duration: track.duration || 0,
                 is_favorite: track.is_favorite || false,
                 created_at: new Date().toISOString(),
                 last_played: new Date().toISOString(),
             });
             console.log('[IndexedDB] Saved new content:', track.title);
+            console.log('[IndexedDB] Metadata saved:', track.metadata ? 'Yes' : 'No');
             return id;
         }
     } catch (error) {
@@ -220,9 +218,10 @@ export async function searchLibrary(query) {
         const lowerQuery = query.toLowerCase();
         const content = await db.content
             .filter(item =>
-                item.title.toLowerCase().includes(lowerQuery) ||
-                item.channel_name.toLowerCase().includes(lowerQuery) ||
-                item.description.toLowerCase().includes(lowerQuery)
+                (item.title && item.title.toLowerCase().includes(lowerQuery)) ||
+                (item.channel_name && item.channel_name.toLowerCase().includes(lowerQuery)) ||
+                (item.description && item.description.toLowerCase().includes(lowerQuery)) ||
+                (item.artist && item.artist.toLowerCase().includes(lowerQuery))
             )
             .toArray();
 
@@ -230,6 +229,40 @@ export async function searchLibrary(query) {
     } catch (error) {
         console.error('[IndexedDB] Error searching library:', error);
         return [];
+    }
+}
+
+/**
+ * Save reading position for a book
+ */
+export async function saveReadingPosition(bookId, position) {
+    try {
+        const book = await db.content.get(bookId);
+        if (book && book.type === 'book') {
+            await db.content.update(bookId, {
+                reading_position: {
+                    chapterIndex: position.chapterIndex,
+                    sentenceIndex: position.sentenceIndex,
+                    timestamp: Date.now()
+                }
+            });
+            console.log('[IndexedDB] Saved reading position for book:', bookId, position);
+        }
+    } catch (error) {
+        console.error('[IndexedDB] Error saving reading position:', error);
+    }
+}
+
+/**
+ * Get reading position for a book
+ */
+export async function getReadingPosition(bookId) {
+    try {
+        const book = await db.content.get(bookId);
+        return book?.reading_position || null;
+    } catch (error) {
+        console.error('[IndexedDB] Error getting reading position:', error);
+        return null;
     }
 }
 

@@ -58,7 +58,7 @@ export default function YouTubeInput() {
                 description: result.data.description,
                 channel_name: result.data.channel,
                 thumbnail_url: result.data.thumbnail,
-                stream_url: result.data.streamUrl,
+                stream_url: result.data.audioUrl, // Changed from streamUrl to audioUrl
                 source_url: pendingUrl,
                 type: 'youtube',
                 mode: 'stream',
@@ -77,13 +77,8 @@ export default function YouTubeInput() {
                 // Don't block playback if save fails
             }
 
-            // Load track into player
+            // Load track into player (auto-plays on load)
             loadTrack(track);
-
-            // Attempt to play (may be blocked by autoplay policy)
-            setTimeout(() => {
-                playTrack();
-            }, 100);
 
             // Clear input
             setUrl('');
@@ -151,8 +146,8 @@ export default function YouTubeInput() {
 
                     {error && (
                         <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${error.startsWith('⚠️') || error.startsWith('ℹ️')
-                                ? 'bg-yellow-500/10 text-yellow-500'
-                                : 'bg-red-500/10 text-red-400'
+                            ? 'bg-yellow-500/10 text-yellow-500'
+                            : 'bg-red-500/10 text-red-400'
                             }`}>
                             <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
                             <span>{error}</span>

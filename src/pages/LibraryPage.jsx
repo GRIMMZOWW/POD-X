@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Heart } from 'lucide-react';
+import { Search, Filter, Heart, X } from 'lucide-react';
 import LibraryGrid from '../components/library/LibraryGrid';
 import StorageMeter from '../components/library/StorageMeter';
+import BookPlayer from '../components/books/BookPlayer';
 import usePlayerStore from '../store/playerStore';
+import ttsService from '../lib/tts';
 import {
     getLibraryContent,
     deleteFromLibrary,
@@ -16,7 +18,8 @@ export default function LibraryPage() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterMode, setFilterMode] = useState('all'); // 'all' | 'favorites'
-    const { loadTrack, playTrack } = usePlayerStore();
+    const [selectedBook, setSelectedBook] = useState(null);
+    const { loadTrack, playTrack, setOnMusicStart } = usePlayerStore();
 
     useEffect(() => {
         loadLibrary();
@@ -25,6 +28,16 @@ export default function LibraryPage() {
     useEffect(() => {
         applyFilters();
     }, [content, searchQuery, filterMode]);
+
+    // Register callback to close book player when music starts
+    useEffect(() => {
+        setOnMusicStart(() => {
+            // Close book player modal
+            ttsService.stop();
+            setSelectedBook(null);
+        });
+        return () => setOnMusicStart(null);
+    }, []);
 
     const loadLibrary = async () => {
         setLoading(true);
@@ -56,6 +69,12 @@ export default function LibraryPage() {
     };
 
     const handlePlay = (item) => {
+        // If it's a book, open BookPlayer modal
+        if (item.type === 'book') {
+            setSelectedBook(item);
+            return;
+        }
+
         // Convert library item to track format
         const track = {
             id: item.videoId,
@@ -108,23 +127,40 @@ export default function LibraryPage() {
         setFilterMode(prev => prev === 'all' ? 'favorites' : 'all');
     };
 
+    const handleCloseBookPlayer = () => {
+        // Stop TTS before closing
+        ttsService.stop();
+        setSelectedBook(null);
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">My Library</h2>
-                <button
-                    onClick={toggleFilterMode}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${filterMode === 'favorites'
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-surface-light text-gray-400 hover:text-white'
-                        }`}
-                >
-                    <Heart size={18} fill={filterMode === 'favorites' ? 'currentColor' : 'none'} />
-                    <span className="text-sm font-medium">
-                        {filterMode === 'favorites' ? 'Favorites' : 'All'}
-                    </span>
-                </button>
+
+                {/* Filter Tabs */}
+                <div className="flex gap-2 bg-surface-light rounded-lg p-1">
+                    <button
+                        onClick={() => setFilterMode('all')}
+                        className={`px-4 py-2 rounded-md transition-all ${filterMode === 'all'
+                            ? 'bg-blue-500 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        All Items
+                    </button>
+                    <button
+                        onClick={() => setFilterMode('favorites')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${filterMode === 'favorites'
+                            ? 'bg-red-500 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        <Heart size={18} fill={filterMode === 'favorites' ? 'currentColor' : 'none'} />
+                        Favorites
+                    </button>
+                </div>
             </div>
 
             {/* Search bar */}
@@ -165,6 +201,32 @@ export default function LibraryPage() {
                 onToggleFavorite={handleToggleFavorite}
                 loading={loading}
             />
+
+            {/* BookPlayer Modal */}
+            {selectedBook && (
+                <div
+                    className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 overflow-y-auto"
+                    onClick={handleCloseBookPlayer} // Close when clicking background
+                >
+                    <div
+                        className="bg-surface rounded-lg max-w-4xl w-full my-8"
+                        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                    >
+                        <div className="sticky top-0 bg-surface border-b border-gray-800 p-4 flex items-center justify-between z-10">
+                            <h2 className="text-xl font-bold">Reading: {selectedBook.title}</h2>
+                            <button
+                                onClick={handleCloseBookPlayer}
+                                className="p-2 hover:bg-surface-light rounded-lg transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <BookPlayer book={selectedBook} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

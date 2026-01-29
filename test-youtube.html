@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>POD-X YouTube Test</title>
+</head>
+<body>
+    <h1>YouTube Extraction Test</h1>
+    <button onclick="testExtraction()">Test YouTube Extraction</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function testExtraction() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing...';
+
+            try {
+                const response = await fetch('http://localhost:3000/api/youtube/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' 
+                    }),
+                });
+
+                const result = await response.json();
+                output.textContent = JSON.stringify(result, null, 2);
+
+                console.log('Full response:', result);
+                console.log('Stream URL:', result.data?.streamUrl);
+                console.log('Title:', result.data?.title);
+                
+            } catch (error) {
+                output.textContent = 'ERROR: ' + error.message;
+                console.error('Test failed:', error);
+            }
+        }
+    </script>
+</body>
+</html>

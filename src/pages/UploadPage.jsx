@@ -1,6 +1,12 @@
-import { Upload as UploadIcon, Youtube, Book, Music } from 'lucide-react';
+import { useState } from 'react';
+import { Upload as UploadIcon, Youtube, Music, Book } from 'lucide-react';
+import YouTubeInput from '../components/youtube/YouTubeInput';
+import MusicUpload from '../components/music/MusicUpload';
+import BookUpload from '../components/books/BookUpload';
 
 export default function UploadPage() {
+    const [activeTab, setActiveTab] = useState('youtube');
+
     return (
         <div className="space-y-6">
             <div className="text-center">
@@ -8,45 +14,47 @@ export default function UploadPage() {
                 <p className="text-gray-400">Choose what you'd like to add</p>
             </div>
 
-            <div className="space-y-4">
-                {/* YouTube option */}
-                <button className="card w-full text-left hover:bg-surface-light transition-colors">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-red-500/20 p-3 rounded-lg">
-                            <Youtube className="text-red-500" size={28} />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="font-semibold mb-1">YouTube</h3>
-                            <p className="text-sm text-gray-400">Stream or download from YouTube</p>
-                        </div>
-                    </div>
+            {/* Tab Navigation */}
+            <div className="flex gap-2 border-b border-gray-800">
+                <button
+                    onClick={() => setActiveTab('youtube')}
+                    className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${activeTab === 'youtube'
+                            ? 'border-red-500 text-red-500'
+                            : 'border-transparent text-gray-400 hover:text-white'
+                        }`}
+                >
+                    <Youtube className="w-5 h-5" />
+                    <span>YouTube</span>
                 </button>
 
-                {/* Books option - Phase 2 */}
-                <button className="card w-full text-left opacity-50 cursor-not-allowed">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-blue-500/20 p-3 rounded-lg">
-                            <Book className="text-blue-500" size={28} />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="font-semibold mb-1">Books</h3>
-                            <p className="text-sm text-gray-400">Coming in Phase 2</p>
-                        </div>
-                    </div>
+                <button
+                    onClick={() => setActiveTab('music')}
+                    className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${activeTab === 'music'
+                            ? 'border-purple-500 text-purple-500'
+                            : 'border-transparent text-gray-400 hover:text-white'
+                        }`}
+                >
+                    <Music className="w-5 h-5" />
+                    <span>Music</span>
                 </button>
 
-                {/* Music option - Phase 3 */}
-                <button className="card w-full text-left opacity-50 cursor-not-allowed">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-green-500/20 p-3 rounded-lg">
-                            <Music className="text-green-500" size={28} />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="font-semibold mb-1">Music</h3>
-                            <p className="text-sm text-gray-400">Coming in Phase 3</p>
-                        </div>
-                    </div>
+                <button
+                    onClick={() => setActiveTab('books')}
+                    className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${activeTab === 'books'
+                            ? 'border-blue-500 text-blue-500'
+                            : 'border-transparent text-gray-400 hover:text-white'
+                        }`}
+                >
+                    <Book className="w-5 h-5" />
+                    <span>Books</span>
                 </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="card">
+                {activeTab === 'youtube' && <YouTubeInput />}
+                {activeTab === 'music' && <MusicUpload />}
+                {activeTab === 'books' && <BookUpload />}
             </div>
         </div>
     );

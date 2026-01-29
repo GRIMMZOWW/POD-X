@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import usePlayerStore from '../../store/playerStore';
 
 export default function ProgressBar() {
-    const { currentTime, duration, howlerInstance } = usePlayerStore();
+    const { currentTime, duration, seekTo } = usePlayerStore();
     const progressBarRef = useRef(null);
     const isDraggingRef = useRef(false);
     const [displayTime, setDisplayTime] = useState(0);
 
-    // Update displayTime from currentTime only when NOT dragging
     useEffect(() => {
         if (!isDraggingRef.current) {
             setDisplayTime(currentTime);
@@ -15,7 +14,7 @@ export default function ProgressBar() {
     }, [currentTime]);
 
     const handleMouseDown = (e) => {
-        if (!howlerInstance || duration === 0) return;
+        if (duration === 0) return;
         isDraggingRef.current = true;
         updateSeekPosition(e);
     };
@@ -28,18 +27,14 @@ export default function ProgressBar() {
     const handleMouseUp = (e) => {
         if (!isDraggingRef.current) return;
 
-        // Calculate final seek position
-        if (howlerInstance && duration > 0 && progressBarRef.current) {
+        if (duration > 0 && progressBarRef.current) {
             const rect = progressBarRef.current.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const newPercentage = Math.max(0, Math.min(1, clickX / rect.width));
             const newTime = newPercentage * duration;
 
-            // Update display immediately
             setDisplayTime(newTime);
-
-            // Seek Howler to the new position
-            howlerInstance.seek(newTime);
+            seekTo(newTime);
         }
 
         isDraggingRef.current = false;
@@ -56,7 +51,6 @@ export default function ProgressBar() {
         setDisplayTime(newTime);
     };
 
-    // Add global mouse event listeners for dragging
     useEffect(() => {
         const handleGlobalMouseMove = (e) => {
             if (isDraggingRef.current) {
@@ -77,7 +71,7 @@ export default function ProgressBar() {
             document.removeEventListener('mousemove', handleGlobalMouseMove);
             document.removeEventListener('mouseup', handleGlobalMouseUp);
         };
-    }, [duration, howlerInstance]);
+    }, [duration]);
 
     const formatTime = (seconds) => {
         if (!seconds || isNaN(seconds)) return '0:00';
@@ -95,12 +89,10 @@ export default function ProgressBar() {
                 onMouseDown={handleMouseDown}
                 className="h-1.5 bg-surface-light rounded-full cursor-pointer group relative overflow-hidden"
             >
-                {/* Progress fill with gradient */}
                 <div
                     className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full relative transition-none"
                     style={{ width: `${percentage}%` }}
                 >
-                    {/* Scrubber handle */}
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
             </div>

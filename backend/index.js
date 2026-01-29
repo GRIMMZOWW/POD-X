@@ -2,20 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const youtubeRoutes = require('./routes/youtube');
+const musicRoutes = require('./routes/music');
+const bookRoutes = require('./routes/book');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'https://pod--x.vercel.app',
-        'https://pod-x.vercel.app',
-        /^https:\/\/pod-.*\.vercel\.app$/,
-        process.env.FRONTEND_URL
-    ].filter(Boolean),
-    credentials: true,
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -28,6 +26,8 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/youtube', youtubeRoutes);
+app.use('/api/music', musicRoutes);
+app.use('/api/book', bookRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

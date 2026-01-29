@@ -1,4 +1,4 @@
-import { Play, Heart, Trash2, Clock } from 'lucide-react';
+import { Play, Heart, Trash2, Clock, Book } from 'lucide-react';
 import { useState } from 'react';
 
 export default function ContentCard({ content, onPlay, onDelete, onToggleFavorite }) {
@@ -71,10 +71,14 @@ export default function ContentCard({ content, onPlay, onDelete, onToggleFavorit
                     </div>
                 )}
 
-                {/* Play overlay on hover */}
+                {/* Play/Read overlay on hover */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="bg-primary rounded-full p-3">
-                        <Play size={24} fill="white" />
+                        {content.type === 'book' ? (
+                            <Book size={24} fill="white" />
+                        ) : (
+                            <Play size={24} fill="white" />
+                        )}
                     </div>
                 </div>
             </div>
@@ -83,6 +87,22 @@ export default function ContentCard({ content, onPlay, onDelete, onToggleFavorit
             <div className="space-y-1">
                 <h3 className="font-semibold line-clamp-2 leading-tight">{content.title}</h3>
                 <p className="text-sm text-gray-400 line-clamp-1">{content.channel_name}</p>
+
+                {/* Book-specific metadata */}
+                {content.type === 'book' && content.metadata && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Book size={12} />
+                        {content.metadata.chapterCount && (
+                            <span>{content.metadata.chapterCount} chapters</span>
+                        )}
+                        {content.metadata.totalPages && (
+                            <>
+                                <span>•</span>
+                                <span>{content.metadata.totalPages} pages</span>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
                     <div className="flex items-center gap-1">
@@ -103,8 +123,8 @@ export default function ContentCard({ content, onPlay, onDelete, onToggleFavorit
                 <button
                     onClick={handleToggleFavorite}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors ${content.is_favorite
-                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                            : 'bg-surface-light text-gray-400 hover:bg-gray-700 hover:text-white'
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'bg-surface-light text-gray-400 hover:bg-gray-700 hover:text-white'
                         }`}
                 >
                     <Heart size={16} fill={content.is_favorite ? 'currentColor' : 'none'} />

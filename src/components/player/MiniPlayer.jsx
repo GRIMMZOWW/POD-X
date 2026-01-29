@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import usePlayerStore from '../../store/playerStore';
 import { Play, Pause, Volume2, X } from 'lucide-react';
 
@@ -8,17 +8,14 @@ export default function MiniPlayer() {
         isPlaying,
         currentTime,
         duration,
-        volume,
         togglePlay,
         seekTo,
-        setVolume,
         clearTrack
     } = usePlayerStore();
 
     const [isDragging, setIsDragging] = useState(false);
     const [dragTime, setDragTime] = useState(0);
 
-    // Handle keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!currentTrack) return;
@@ -53,10 +50,6 @@ export default function MiniPlayer() {
         setIsDragging(false);
     };
 
-    const handleClose = () => {
-        clearTrack();
-    };
-
     const formatTime = (seconds) => {
         if (isNaN(seconds) || seconds < 0) return "0:00";
         const mins = Math.floor(seconds / 60);
@@ -64,14 +57,12 @@ export default function MiniPlayer() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Use dragTime while dragging, otherwise use currentTime
     const displayTime = isDragging ? dragTime : currentTime;
     const progress = duration > 0 ? (displayTime / duration) * 100 : 0;
 
     return (
         <div className="fixed bottom-16 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 p-4 z-50 shadow-2xl">
             <div className="max-w-4xl mx-auto flex items-center gap-4">
-                {/* Thumbnail */}
                 <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
                     {currentTrack.thumbnail_url ? (
                         <img
@@ -86,7 +77,6 @@ export default function MiniPlayer() {
                     )}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                     <h4 className="text-white text-sm font-medium truncate">
                         {currentTrack.title}
@@ -96,7 +86,6 @@ export default function MiniPlayer() {
                     </p>
                 </div>
 
-                {/* Progress Bar - Desktop */}
                 <div className="hidden md:flex flex-1 items-center gap-3 min-w-[200px]">
                     <span className="text-xs text-gray-400 w-10 text-right font-mono">
                         {formatTime(displayTime)}
@@ -110,7 +99,7 @@ export default function MiniPlayer() {
                         onMouseDown={handleSeekStart}
                         onInput={handleSeekMove}
                         onMouseUp={handleSeekEnd}
-                        onChange={(e) => e.preventDefault()} // Prevent default onChange
+                        onChange={(e) => e.preventDefault()}
                         className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer 
                      accent-[#6B46C1] hover:h-2 transition-all"
                         style={{
@@ -123,7 +112,6 @@ export default function MiniPlayer() {
                     </span>
                 </div>
 
-                {/* Controls */}
                 <div className="flex items-center gap-2">
                     <button
                         onClick={togglePlay}
@@ -136,7 +124,7 @@ export default function MiniPlayer() {
                     </button>
 
                     <button
-                        onClick={handleClose}
+                        onClick={clearTrack}
                         className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 
                      rounded-full transition-colors ml-2"
                         title="Close player"
@@ -146,7 +134,6 @@ export default function MiniPlayer() {
                 </div>
             </div>
 
-            {/* Mobile Progress */}
             <div className="md:hidden mt-3 flex items-center gap-3">
                 <span className="text-xs text-gray-400 w-10 text-right font-mono">
                     {formatTime(displayTime)}
