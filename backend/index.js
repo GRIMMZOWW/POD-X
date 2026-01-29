@@ -10,7 +10,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
     origin: [
         'http://localhost:5173',
+        'https://pod--x.vercel.app',
         'https://pod-x.vercel.app',
+        /^https:\/\/pod-.*\.vercel\.app$/,
         process.env.FRONTEND_URL
     ].filter(Boolean),
     credentials: true,
