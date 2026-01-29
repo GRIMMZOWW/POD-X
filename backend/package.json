@@ -14,10 +14,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@distube/ytdl-core": "^4.14.4",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "node-fetch": "^2.7.0",
-    "youtube-dl-exec": "^3.0.30"
+    "node-fetch": "^2.7.0"
   }
 }
