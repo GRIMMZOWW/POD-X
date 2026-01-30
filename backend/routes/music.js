@@ -93,14 +93,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
  */
 router.post('/upload-multiple', upload.array('files', 20), async (req, res) => {
     try {
+        console.log('[Music API] Upload request received');
+        console.log('[Music API] Files:', req.files ? req.files.length : 0);
+
+        // If no files uploaded, return success (files stored client-side)
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'No files uploaded'
+            console.log('[Music API] No files in request, returning success');
+            return res.json({
+                success: true,
+                message: 'Upload endpoint ready',
+                data: []
             });
         }
-
-        console.log('[Music API] Processing', req.files.length, 'files');
 
         const results = [];
         const errors = [];
