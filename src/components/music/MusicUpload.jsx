@@ -89,7 +89,7 @@ export default function MusicUpload() {
                         title: metadata.title || file.name.replace(/\.[^/.]+$/, ''),
                         description: `${metadata.artist || 'Unknown Artist'} • ${metadata.album || 'Unknown Album'}`,
                         channel_name: metadata.artist || 'Unknown Artist',
-                        thumbnail_url: '/music-icon.png',
+                        thumbnail_url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMjAwIDIwMCI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiM0YjViNmMiLz48cGF0aCBkPSJNMTAwIDUwYzI3LjYxNCAwIDUwIDIyLjM4NiA1MCA1MHMtMjIuMzg2IDUwLTUwIDUwLTUwLTIyLjM4Ni01MC01MCAyMi4zODYtNTAgNTAtNTB6bTAgMTBjLTIyLjA5MSAwLTQwIDE3LjkwOS00MCA0MHMxNy45MDkgNDAgNDAgNDAgNDAtMTcuOTA5IDQwLTQwLTE3LjkwOS00MC00MC00MHoiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjE1IiBmaWxsPSIjZmZmIi8+PC9zdmc+',
                         stream_url: `music://${id}`, // Special protocol to identify music files
                         source_url: `music://${id}`,
                         type: 'music',
