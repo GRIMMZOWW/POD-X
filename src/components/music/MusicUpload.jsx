@@ -2,12 +2,9 @@ import { useState } from 'react';
 import { Music, Upload, X, Check, AlertCircle } from 'lucide-react';
 import { saveToLibrary } from '../../lib/indexedDB';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export default function MusicUpload() {
     const [files, setFiles] = useState([]);
     const [uploading, setUploading] = useState(false);
-    const [progress, setProgress] = useState({});
     const [errors, setErrors] = useState([]);
     const [success, setSuccess] = useState('');
 
@@ -47,56 +44,61 @@ export default function MusicUpload() {
         setSuccess('');
 
         try {
-            const formData = new FormData();
-            files.forEach(file => {
-                formData.append('files', file);
-            });
+            const processedFiles = [];
+            const failedFiles = [];
 
-            const response = await fetch(`${API_URL}/api/music/upload-multiple`, {
-                method: 'POST',
-                body: formData
-            });
+            for (const file of files) {
+                try {
+                    // Extract metadata from file
+                    const metadata = await extractMetadata(file);
 
-            const result = await response.json();
+                    // Create blob URL for audio playback
+                    const audioUrl = URL.createObjectURL(file);
 
-            if (!response.ok) {
-                throw new Error(result.message || 'Upload failed');
+                    // Save to IndexedDB
+                    const libraryTrack = {
+                        id: `music_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                        title: metadata.title || file.name.replace(/\.[^/.]+$/, ''),
+                        description: metadata.artist ? `${metadata.artist}${metadata.album ? ' • ' + metadata.album : ''}` : 'Uploaded Music',
+                        channel_name: metadata.artist || 'Unknown Artist',
+                        thumbnail_url: metadata.coverUrl || '/default-music-cover.png',
+                        stream_url: audioUrl,
+                        source_url: audioUrl,
+                        type: 'music',
+                        mode: 'upload',
+                        duration: metadata.duration || 0,
+                        current_position: 0,
+                        is_favorite: false,
+                        metadata: {
+                            artist: metadata.artist || 'Unknown Artist',
+                            album: metadata.album || 'Unknown Album',
+                            year: metadata.year,
+                            genre: metadata.genre,
+                            trackNumber: metadata.trackNumber,
+                            fileSize: file.size,
+                            fileName: file.name
+                        }
+                    };
+
+                    console.log('[MusicUpload] Saving track to IndexedDB:', libraryTrack.title);
+                    await saveToLibrary(libraryTrack);
+                    processedFiles.push(file.name);
+
+                } catch (error) {
+                    console.error('[MusicUpload] Error processing file:', file.name, error);
+                    failedFiles.push({ name: file.name, error: error.message });
+                }
             }
 
-            // Save to library
-            for (const track of result.data) {
-                const libraryTrack = {
-                    id: `music_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-                    title: track.title,
-                    description: `${track.artist} • ${track.album}`,
-                    channel_name: track.artist,
-                    thumbnail_url: track.coverUrl,
-                    stream_url: track.audioUrl,
-                    source_url: track.audioUrl,
-                    type: 'music',
-                    mode: 'upload',
-                    duration: track.duration,
-                    current_position: 0,
-                    is_favorite: false,
-                    metadata: {
-                        artist: track.artist,
-                        album: track.album,
-                        year: track.year,
-                        genre: track.genre,
-                        trackNumber: track.trackNumber
-                    }
-                };
-
-                console.log('[MusicUpload] Saving track:', libraryTrack);
-                await saveToLibrary(libraryTrack);
+            if (processedFiles.length > 0) {
+                setSuccess(`✓ ${processedFiles.length} file(s) uploaded successfully!`);
             }
 
-            setSuccess(`✓ ${result.data.length} file(s) uploaded successfully!`);
+            if (failedFiles.length > 0) {
+                setErrors(failedFiles.map(f => `${f.name}: ${f.error}`));
+            }
+
             setFiles([]);
-
-            if (result.errors && result.errors.length > 0) {
-                setErrors(result.errors.map(e => `${e.file}: ${e.error}`));
-            }
 
         } catch (error) {
             console.error('[MusicUpload] Error:', error);
@@ -104,6 +106,37 @@ export default function MusicUpload() {
         } finally {
             setUploading(false);
         }
+    };
+
+    const extractMetadata = async (file) => {
+        return new Promise((resolve) => {
+            const audio = new Audio();
+            const url = URL.createObjectURL(file);
+
+            audio.addEventListener('loadedmetadata', () => {
+                const metadata = {
+                    duration: audio.duration,
+                    title: file.name.replace(/\.[^/.]+$/, ''),
+                    artist: 'Unknown Artist',
+                    album: 'Unknown Album'
+                };
+
+                URL.revokeObjectURL(url);
+                resolve(metadata);
+            });
+
+            audio.addEventListener('error', () => {
+                URL.revokeObjectURL(url);
+                resolve({
+                    duration: 0,
+                    title: file.name.replace(/\.[^/.]+$/, ''),
+                    artist: 'Unknown Artist',
+                    album: 'Unknown Album'
+                });
+            });
+
+            audio.src = url;
+        });
     };
 
     const formatFileSize = (bytes) => {
@@ -121,7 +154,7 @@ export default function MusicUpload() {
             </div>
 
             <p className="text-sm text-gray-400 mb-4">
-                Upload your own MP3, M4A, WAV, or FLAC files • Auto-saves to library
+                Upload your own MP3, M4A, WAV, or FLAC files • Stored locally in your browser
             </p>
 
             {/* Drop Zone */}
@@ -156,7 +189,7 @@ export default function MusicUpload() {
                             <Music className="w-5 h-5 text-primary flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm text-white truncate">{file.name}</p>
-                                <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                <p className="text-xs text-gray-400">{formatFileSize(file.size)}</p>
                             </div>
                             <button
                                 onClick={() => removeFile(index)}
@@ -172,7 +205,7 @@ export default function MusicUpload() {
                         disabled={uploading}
                         className="btn btn-primary w-full"
                     >
-                        {uploading ? 'Uploading...' : `Upload ${files.length} File(s)`}
+                        {uploading ? 'Processing...' : `Upload ${files.length} File(s)`}
                     </button>
                 </div>
             )}
