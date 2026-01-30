@@ -72,8 +72,28 @@ export async function getLibraryContent(options = {}) {
         // Sort by last played (most recent first)
         const content = await query.reverse().sortBy('last_played');
 
-        console.log(`[IndexedDB] Retrieved ${content.length} items from library`);
-        return content;
+        // Recreate blob URLs for music files
+        const contentWithBlobs = await Promise.all(content.map(async (item) => {
+            if (item.type === 'music' && item.mode === 'upload') {
+                try {
+                    const audioBlob = await db.audioBlobs.get(item.videoId);
+                    if (audioBlob && audioBlob.blob) {
+                        const blobUrl = URL.createObjectURL(audioBlob.blob);
+                        return {
+                            ...item,
+                            stream_url: blobUrl,
+                            source_url: blobUrl
+                        };
+                    }
+                } catch (error) {
+                    console.error('[IndexedDB] Error loading blob for:', item.title, error);
+                }
+            }
+            return item;
+        }));
+
+        console.log(`[IndexedDB] Retrieved ${contentWithBlobs.length} items from library`);
+        return contentWithBlobs;
     } catch (error) {
         console.error('[IndexedDB] Error getting library content:', error);
         return [];

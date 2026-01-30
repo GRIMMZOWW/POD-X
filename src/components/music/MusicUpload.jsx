@@ -52,12 +52,25 @@ export default function MusicUpload() {
                     // Extract metadata from file
                     const metadata = await extractMetadata(file);
 
-                    // Create blob URL for audio playback
+                    // Generate unique ID for this music file
+                    const musicId = `music_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+                    // Store the actual file blob in IndexedDB
+                    const { db } = await import('../../lib/indexedDB');
+                    await db.audioBlobs.put({
+                        videoId: musicId,
+                        blob: file,
+                        size: file.size,
+                        created_at: new Date().toISOString()
+                    });
+
+                    // Create temporary blob URL for immediate playback
                     const audioUrl = URL.createObjectURL(file);
 
-                    // Save to IndexedDB
+                    // Save metadata to library
                     const libraryTrack = {
-                        id: `music_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                        id: musicId,
+                        videoId: musicId,
                         title: metadata.title || file.name.replace(/\.[^/.]+$/, ''),
                         description: metadata.artist ? `${metadata.artist}${metadata.album ? ' • ' + metadata.album : ''}` : 'Uploaded Music',
                         channel_name: metadata.artist || 'Unknown Artist',
