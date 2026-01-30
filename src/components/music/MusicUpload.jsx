@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { Music, Upload, X, Check, AlertCircle } from 'lucide-react';
-import { saveToLibrary } from '../../lib/indexedDB';
+import Dexie from 'dexie';
+
+// Simple dedicated database for music files
+const musicDB = new Dexie('POD-X-Music');
+musicDB.version(1).stores({
+    tracks: 'id, title, artist, album',
+    files: 'id, blob'
+});
 
 export default function MusicUpload() {
     const [files, setFiles] = useState([]);
@@ -44,39 +51,47 @@ export default function MusicUpload() {
         setSuccess('');
 
         try {
-            const processedFiles = [];
+            let successCount = 0;
             const failedFiles = [];
 
             for (const file of files) {
                 try {
-                    // Extract metadata from file
-                    const metadata = await extractMetadata(file);
+                    const id = `music_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-                    // Generate unique ID for this music file
-                    const musicId = `music_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                    // Get metadata
+                    const metadata = await getAudioMetadata(file);
 
-                    // Store the actual file blob in IndexedDB
-                    const { db } = await import('../../lib/indexedDB');
-                    await db.audioBlobs.put({
-                        videoId: musicId,
-                        blob: file,
-                        size: file.size,
+                    // Store file blob
+                    await musicDB.files.put({
+                        id: id,
+                        blob: file
+                    });
+
+                    // Store track metadata
+                    await musicDB.tracks.put({
+                        id: id,
+                        title: metadata.title || file.name.replace(/\.[^/.]+$/, ''),
+                        artist: metadata.artist || 'Unknown Artist',
+                        album: metadata.album || 'Unknown Album',
+                        duration: metadata.duration || 0,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        type: 'music',
+                        mode: 'upload',
                         created_at: new Date().toISOString()
                     });
 
-                    // Create temporary blob URL for immediate playback
-                    const audioUrl = URL.createObjectURL(file);
-
-                    // Save metadata to library
-                    const libraryTrack = {
-                        id: musicId,
-                        videoId: musicId,
+                    // Also save to main library for compatibility
+                    const { saveToLibrary } = await import('../../lib/indexedDB');
+                    await saveToLibrary({
+                        id: id,
+                        videoId: id,
                         title: metadata.title || file.name.replace(/\.[^/.]+$/, ''),
-                        description: metadata.artist ? `${metadata.artist}${metadata.album ? ' • ' + metadata.album : ''}` : 'Uploaded Music',
+                        description: `${metadata.artist || 'Unknown Artist'} • ${metadata.album || 'Unknown Album'}`,
                         channel_name: metadata.artist || 'Unknown Artist',
-                        thumbnail_url: metadata.coverUrl || '/default-music-cover.png',
-                        stream_url: audioUrl,
-                        source_url: audioUrl,
+                        thumbnail_url: '/music-icon.png',
+                        stream_url: `music://${id}`, // Special protocol to identify music files
+                        source_url: `music://${id}`,
                         type: 'music',
                         mode: 'upload',
                         duration: metadata.duration || 0,
@@ -85,33 +100,26 @@ export default function MusicUpload() {
                         metadata: {
                             artist: metadata.artist || 'Unknown Artist',
                             album: metadata.album || 'Unknown Album',
-                            year: metadata.year,
-                            genre: metadata.genre,
-                            trackNumber: metadata.trackNumber,
-                            fileSize: file.size,
-                            fileName: file.name
+                            fileName: file.name,
+                            fileSize: file.size
                         }
-                    };
+                    });
 
-                    console.log('[MusicUpload] Saving track to IndexedDB:', libraryTrack.title);
-                    await saveToLibrary(libraryTrack);
-                    processedFiles.push(file.name);
-
+                    successCount++;
                 } catch (error) {
-                    console.error('[MusicUpload] Error processing file:', file.name, error);
+                    console.error('[MusicUpload] Error processing:', file.name, error);
                     failedFiles.push({ name: file.name, error: error.message });
                 }
             }
 
-            if (processedFiles.length > 0) {
-                setSuccess(`✓ ${processedFiles.length} file(s) uploaded successfully!`);
+            if (successCount > 0) {
+                setSuccess(`✓ ${successCount} file(s) uploaded successfully!`);
+                setFiles([]);
             }
 
             if (failedFiles.length > 0) {
                 setErrors(failedFiles.map(f => `${f.name}: ${f.error}`));
             }
-
-            setFiles([]);
 
         } catch (error) {
             console.error('[MusicUpload] Error:', error);
@@ -121,21 +129,19 @@ export default function MusicUpload() {
         }
     };
 
-    const extractMetadata = async (file) => {
+    const getAudioMetadata = (file) => {
         return new Promise((resolve) => {
             const audio = new Audio();
             const url = URL.createObjectURL(file);
 
             audio.addEventListener('loadedmetadata', () => {
-                const metadata = {
+                URL.revokeObjectURL(url);
+                resolve({
                     duration: audio.duration,
                     title: file.name.replace(/\.[^/.]+$/, ''),
                     artist: 'Unknown Artist',
                     album: 'Unknown Album'
-                };
-
-                URL.revokeObjectURL(url);
-                resolve(metadata);
+                });
             });
 
             audio.addEventListener('error', () => {
@@ -167,7 +173,7 @@ export default function MusicUpload() {
             </div>
 
             <p className="text-sm text-gray-400 mb-4">
-                Upload your own MP3, M4A, WAV, or FLAC files • Stored locally in your browser
+                Upload MP3, M4A, WAV, or FLAC files • Stored locally in your browser
             </p>
 
             {/* Drop Zone */}
@@ -244,4 +250,15 @@ export default function MusicUpload() {
             )}
         </div>
     );
+}
+
+// Export helper to get music file blob
+export async function getMusicBlob(id) {
+    try {
+        const file = await musicDB.files.get(id);
+        return file?.blob || null;
+    } catch (error) {
+        console.error('[MusicDB] Error getting blob:', error);
+        return null;
+    }
 }

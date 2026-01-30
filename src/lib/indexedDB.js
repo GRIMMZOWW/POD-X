@@ -72,13 +72,16 @@ export async function getLibraryContent(options = {}) {
         // Sort by last played (most recent first)
         const content = await query.reverse().sortBy('last_played');
 
-        // Recreate blob URLs for music files
-        const contentWithBlobs = await Promise.all(content.map(async (item) => {
-            if (item.type === 'music' && item.mode === 'upload') {
+        // Load music files from dedicated music database
+        const contentWithMusic = await Promise.all(content.map(async (item) => {
+            if (item.type === 'music' && item.mode === 'upload' && item.stream_url?.startsWith('music://')) {
                 try {
-                    const audioBlob = await db.audioBlobs.get(item.videoId);
-                    if (audioBlob && audioBlob.blob) {
-                        const blobUrl = URL.createObjectURL(audioBlob.blob);
+                    const musicId = item.stream_url.replace('music://', '');
+                    const { getMusicBlob } = await import('../components/music/MusicUpload');
+                    const blob = await getMusicBlob(musicId);
+
+                    if (blob) {
+                        const blobUrl = URL.createObjectURL(blob);
                         return {
                             ...item,
                             stream_url: blobUrl,
@@ -86,14 +89,14 @@ export async function getLibraryContent(options = {}) {
                         };
                     }
                 } catch (error) {
-                    console.error('[IndexedDB] Error loading blob for:', item.title, error);
+                    console.error('[IndexedDB] Error loading music blob for:', item.title, error);
                 }
             }
             return item;
         }));
 
-        console.log(`[IndexedDB] Retrieved ${contentWithBlobs.length} items from library`);
-        return contentWithBlobs;
+        console.log(`[IndexedDB] Retrieved ${contentWithMusic.length} items from library`);
+        return contentWithMusic;
     } catch (error) {
         console.error('[IndexedDB] Error getting library content:', error);
         return [];
