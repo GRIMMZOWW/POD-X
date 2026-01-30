@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Book, Play, Pause, SkipBack, SkipForward, Settings, Volume2 } from 'lucide-react';
+import { Book, Play, Pause, SkipBack, SkipForward, Settings, Volume2, Moon } from 'lucide-react';
 import ttsService from '../../lib/tts';
 import usePlayerStore from '../../store/playerStore';
 import { saveReadingPosition, getReadingPosition } from '../../lib/indexedDB';
 import ResumePrompt from './ResumePrompt';
+import SleepTimer from './SleepTimer';
 
 export default function BookPlayer({ book }) {
     const [isReading, setIsReading] = useState(false);
@@ -18,8 +19,14 @@ export default function BookPlayer({ book }) {
     const [showSettings, setShowSettings] = useState(false);
     const [showResumePrompt, setShowResumePrompt] = useState(false);
     const [savedPosition, setSavedPosition] = useState(null);
+    const [showSleepTimer, setShowSleepTimer] = useState(false);
+    const [sleepTimerActive, setSleepTimerActive] = useState(false);
+    const [sleepTimerEnd, setSleepTimerEnd] = useState(null);
+    const [timeRemaining, setTimeRemaining] = useState(0);
     const sentenceRefs = useRef([]);
     const autoSaveInterval = useRef(null);
+    const sleepTimerInterval = useRef(null);
+    const originalVolume = useRef(1.0);
 
     // Load book data
     useEffect(() => {
@@ -140,6 +147,56 @@ export default function BookPlayer({ book }) {
         }
     }, [currentSentenceIndex, isReading]);
 
+    // Sleep timer countdown
+    useEffect(() => {
+        if (sleepTimerActive && sleepTimerEnd) {
+            // Clear any existing interval
+            if (sleepTimerInterval.current) {
+                clearInterval(sleepTimerInterval.current);
+            }
+
+            sleepTimerInterval.current = setInterval(() => {
+                const now = Date.now();
+                const remaining = Math.max(0, Math.floor((sleepTimerEnd - now) / 1000));
+                setTimeRemaining(remaining);
+
+                // Volume fade in last 30 seconds
+                if (remaining <= 30 && remaining > 0) {
+                    const fadeVolume = (remaining / 30) * originalVolume.current;
+                    ttsService.setVolume(fadeVolume);
+                } else if (remaining === 0) {
+                    // Timer ended - pause and reset
+                    ttsService.stop();
+                    setIsReading(false);
+                    setSleepTimerActive(false);
+                    setSleepTimerEnd(null);
+                    ttsService.setVolume(originalVolume.current);
+
+                    // Save position
+                    if (book) {
+                        saveReadingPosition(book.id, {
+                            chapterIndex: currentChapterIndex,
+                            sentenceIndex: currentSentenceIndex
+                        });
+                    }
+
+                    // Clear interval
+                    if (sleepTimerInterval.current) {
+                        clearInterval(sleepTimerInterval.current);
+                        sleepTimerInterval.current = null;
+                    }
+                }
+            }, 1000);
+
+            // Cleanup
+            return () => {
+                if (sleepTimerInterval.current) {
+                    clearInterval(sleepTimerInterval.current);
+                }
+            };
+        }
+    }, [sleepTimerActive, sleepTimerEnd, book, currentChapterIndex, currentSentenceIndex]);
+
     const handlePlayPause = () => {
         if (isReading) {
             // Stop instead of pause to prevent interrupted errors
@@ -210,6 +267,27 @@ export default function BookPlayer({ book }) {
             });
         }
     };
+
+    // Sleep timer handlers
+    const handleSetSleepTimer = (minutes) => {
+        const endTime = Date.now() + (minutes * 60 * 1000);
+        setSleepTimerEnd(endTime);
+        setSleepTimerActive(true);
+        setTimeRemaining(minutes * 60);
+        setShowSleepTimer(false);
+    };
+
+    const handleCancelSleepTimer = () => {
+        setSleepTimerActive(false);
+        setSleepTimerEnd(null);
+        setTimeRemaining(0);
+        ttsService.setVolume(originalVolume.current);
+        if (sleepTimerInterval.current) {
+            clearInterval(sleepTimerInterval.current);
+            sleepTimerInterval.current = null;
+        }
+    };
+
 
     const handlePreviousChapter = () => {
         if (currentChapterIndex > 0) {
@@ -283,6 +361,15 @@ export default function BookPlayer({ book }) {
                 </div>
             </div>
 
+            {/* Active Sleep Timer Display */}
+            {sleepTimerActive && !showSleepTimer && (
+                <SleepTimer
+                    isActive={true}
+                    timeRemaining={timeRemaining}
+                    onCancel={handleCancelSleepTimer}
+                />
+            )}
+
             {/* Progress Bar */}
             <div className="space-y-2">
                 <div className="flex justify-between text-sm text-gray-400">
@@ -352,6 +439,17 @@ export default function BookPlayer({ book }) {
                 </button>
 
                 <button
+                    onClick={() => setShowSleepTimer(!showSleepTimer)}
+                    className={`p-3 rounded-full transition-colors ${sleepTimerActive
+                        ? 'bg-blue-500/20 text-blue-400'
+                        : 'bg-surface hover:bg-surface-light'
+                        }`}
+                    title="Sleep Timer"
+                >
+                    <Moon size={20} className={sleepTimerActive ? 'animate-pulse' : ''} />
+                </button>
+
+                <button
                     onClick={() => setShowSettings(!showSettings)}
                     className="p-3 rounded-full bg-surface hover:bg-surface-light transition-colors"
                 >
@@ -403,6 +501,18 @@ export default function BookPlayer({ book }) {
                             <span>2.0x (Fast)</span>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Sleep Timer Panel */}
+            {showSleepTimer && (
+                <div className="card bg-surface-light space-y-4">
+                    <SleepTimer
+                        onSetTimer={handleSetSleepTimer}
+                        onCancel={handleCancelSleepTimer}
+                        isActive={sleepTimerActive}
+                        timeRemaining={timeRemaining}
+                    />
                 </div>
             )}
 

@@ -165,6 +165,15 @@ class TTSService {
     }
 
     /**
+     * Set volume dynamically (for sleep timer fade)
+     */
+    setVolume(volume) {
+        if (this.currentUtterance) {
+            this.currentUtterance.volume = Math.max(0, Math.min(1, volume));
+        }
+    }
+
+    /**
      * Set callbacks
      */
     setCallbacks(callbacks) {
