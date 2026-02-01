@@ -1,4 +1,4 @@
-import { Music, Home, Library, Upload } from 'lucide-react';
+import { Music, Home, Library, Upload, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function BottomNav() {
@@ -8,6 +8,7 @@ export default function BottomNav() {
         { path: '/', icon: Home, label: 'Stream' },
         { path: '/library', icon: Library, label: 'Library' },
         { path: '/upload', icon: Upload, label: 'Upload' },
+        { path: '/settings', icon: Settings, label: 'Settings' },
     ];
 
     return (

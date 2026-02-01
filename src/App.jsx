@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout';
 import StreamPage from './pages/StreamPage';
 import LibraryPage from './pages/LibraryPage';
 import UploadPage from './pages/UploadPage';
+import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 
@@ -31,6 +32,7 @@ function App() {
               <Route index element={<StreamPage />} />
               <Route path="library" element={<LibraryPage />} />
               <Route path="upload" element={<UploadPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
 
             {/* Catch all - redirect to home */}

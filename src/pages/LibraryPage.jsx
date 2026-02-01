@@ -25,6 +25,7 @@ export default function LibraryPage() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterMode, setFilterMode] = useState('all'); // 'all' | 'favorites' | 'history'
+    const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'youtube' | 'music' | 'book'
     const [selectedBook, setSelectedBook] = useState(null);
     const { loadTrack, playTrack, setOnMusicStart, clearTrack } = usePlayerStore();
 
@@ -40,7 +41,7 @@ export default function LibraryPage() {
 
     useEffect(() => {
         applyFilters();
-    }, [content, searchQuery, filterMode]);
+    }, [content, searchQuery, filterMode, typeFilter]);
 
     // Register callback to close book player when music starts
     useEffect(() => {
@@ -88,6 +89,11 @@ export default function LibraryPage() {
         // Apply filter mode
         if (filterMode === 'favorites') {
             filtered = filtered.filter(item => item.is_favorite);
+        }
+
+        // Apply type filter
+        if (typeFilter !== 'all') {
+            filtered = filtered.filter(item => item.type === typeFilter);
         }
 
         setFilteredContent(filtered);
@@ -225,6 +231,48 @@ export default function LibraryPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Type Filters */}
+            {filterMode !== 'history' && (
+                <div className="flex gap-2 flex-wrap">
+                    <button
+                        onClick={() => setTypeFilter('all')}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${typeFilter === 'all'
+                                ? 'bg-gray-700 text-white'
+                                : 'bg-surface text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        All Types
+                    </button>
+                    <button
+                        onClick={() => setTypeFilter('youtube')}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${typeFilter === 'youtube'
+                                ? 'bg-red-500 text-white'
+                                : 'bg-surface text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        📺 YouTube
+                    </button>
+                    <button
+                        onClick={() => setTypeFilter('music')}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${typeFilter === 'music'
+                                ? 'bg-purple-500 text-white'
+                                : 'bg-surface text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        🎵 Music
+                    </button>
+                    <button
+                        onClick={() => setTypeFilter('book')}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${typeFilter === 'book'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-surface text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        📚 Books
+                    </button>
+                </div>
+            )}
 
             {/* Search bar */}
             <div className="relative">

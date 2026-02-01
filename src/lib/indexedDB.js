@@ -355,12 +355,82 @@ export async function deleteFromHistory(id) {
 /**
  * Clear all YouTube history
  */
+/**
+ * Clear all YouTube history
+ */
 export async function clearHistory() {
     try {
         await db.history.clear();
         console.log('[IndexedDB] History cleared');
     } catch (error) {
         console.error('[IndexedDB] Error clearing history:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get storage information
+ */
+export async function getStorageInfo() {
+    try {
+        const contentCount = await db.content.count();
+        const historyCount = await db.history.count();
+        const totalItems = contentCount + historyCount;
+
+        let estimatedSize = 0;
+        if (navigator.storage && navigator.storage.estimate) {
+            const estimate = await navigator.storage.estimate();
+            estimatedSize = estimate.usage || 0;
+        }
+
+        return {
+            totalItems,
+            contentCount,
+            historyCount,
+            estimatedSize,
+        };
+    } catch (error) {
+        console.error('[IndexedDB] Error getting storage info:', error);
+        return {
+            totalItems: 0,
+            contentCount: 0,
+            historyCount: 0,
+            estimatedSize: 0,
+        };
+    }
+}
+
+/**
+ * Clear all data (library, history, progress)
+ */
+export async function clearAllData() {
+    try {
+        await db.content.clear();
+        await db.audioBlobs.clear();
+        await db.playbackProgress.clear();
+        await db.history.clear();
+
+        // Also clear music database
+        try {
+            const musicDB = await new Promise((resolve) => {
+                const request = indexedDB.open('POD-X-Music');
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => resolve(null);
+            });
+
+            if (musicDB) {
+                const tx = musicDB.transaction(['tracks', 'files'], 'readwrite');
+                await tx.objectStore('tracks').clear();
+                await tx.objectStore('files').clear();
+                musicDB.close();
+            }
+        } catch (e) {
+            console.warn('[IndexedDB] Could not clear music database:', e);
+        }
+
+        console.log('[IndexedDB] All data cleared');
+    } catch (error) {
+        console.error('[IndexedDB] Error clearing all data:', error);
         throw error;
     }
 }
