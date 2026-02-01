@@ -25,3 +25,9 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Environment files - DO NOT COMMIT
+.env
+backend/.env
+*.env
+!.env.example

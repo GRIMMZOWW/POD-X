@@ -3,7 +3,7 @@ import Dexie from 'dexie';
 // Initialize Dexie database
 const db = new Dexie('POD-X');
 
-// Define database schema
+// Define database schema version 1
 db.version(1).stores({
     // Content metadata (all streamed/saved content)
     content: '++id, videoId, title, channel_name, type, mode, created_at, last_played, is_favorite',
@@ -13,6 +13,17 @@ db.version(1).stores({
 
     // Playback progress
     playbackProgress: 'videoId, current_position, duration, updated_at',
+});
+
+// Version 2: Add YouTube history table
+db.version(2).stores({
+    // Keep all existing tables
+    content: '++id, videoId, title, channel_name, type, mode, created_at, last_played, is_favorite',
+    audioBlobs: 'videoId, blob, size, created_at',
+    playbackProgress: 'videoId, current_position, duration, updated_at',
+
+    // YouTube playback history (iframe embed tracking)
+    history: '++id, videoId, title, channel, thumbnail, url, played_at',
 });
 
 /**
@@ -286,6 +297,71 @@ export async function getReadingPosition(bookId) {
     } catch (error) {
         console.error('[IndexedDB] Error getting reading position:', error);
         return null;
+    }
+}
+
+/**
+ * Add YouTube video to history
+ */
+export async function addToHistory(videoData) {
+    try {
+        const id = await db.history.add({
+            videoId: videoData.videoId,
+            title: videoData.title || 'Unknown Title',
+            channel: videoData.channel || 'Unknown Channel',
+            thumbnail: videoData.thumbnail || '',
+            url: videoData.url || '',
+            played_at: new Date().toISOString(),
+        });
+        console.log('[IndexedDB] Added to history:', videoData.title);
+        return id;
+    } catch (error) {
+        console.error('[IndexedDB] Error adding to history:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get YouTube playback history
+ */
+export async function getHistory(limit = 50) {
+    try {
+        const history = await db.history
+            .orderBy('played_at')
+            .reverse()
+            .limit(limit)
+            .toArray();
+        console.log(`[IndexedDB] Retrieved ${history.length} history items`);
+        return history;
+    } catch (error) {
+        console.error('[IndexedDB] Error getting history:', error);
+        return [];
+    }
+}
+
+/**
+ * Delete item from history
+ */
+export async function deleteFromHistory(id) {
+    try {
+        await db.history.delete(id);
+        console.log('[IndexedDB] Deleted from history:', id);
+    } catch (error) {
+        console.error('[IndexedDB] Error deleting from history:', error);
+        throw error;
+    }
+}
+
+/**
+ * Clear all YouTube history
+ */
+export async function clearHistory() {
+    try {
+        await db.history.clear();
+        console.log('[IndexedDB] History cleared');
+    } catch (error) {
+        console.error('[IndexedDB] Error clearing history:', error);
+        throw error;
     }
 }
 

@@ -17,6 +17,19 @@ export function AuthProvider({ children }) {
     const [session, setSession] = useState(null);
 
     useEffect(() => {
+        // Dev mode bypass - ONLY works locally, never in production
+        const isDevMode = import.meta.env.DEV && !import.meta.env.VITE_SUPABASE_URL?.includes('supabase.co');
+
+        if (isDevMode) {
+            console.warn('DEV MODE: Auth bypassed for local testing');
+            const devUser = { id: 'dev', email: 'dev@local.com' };
+            const devSession = { user: devUser };
+            setUser(devUser);
+            setSession(devSession);
+            setLoading(false);
+            return; // Skip real auth setup
+        }
+
         // Check active session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);

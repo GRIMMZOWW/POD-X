@@ -1,25 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Heart, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Filter, Heart, X, Clock } from 'lucide-react';
 import LibraryGrid from '../components/library/LibraryGrid';
 import StorageMeter from '../components/library/StorageMeter';
 import BookPlayer from '../components/books/BookPlayer';
 import usePlayerStore from '../store/playerStore';
 import ttsService from '../lib/tts';
+import { useYouTube } from '../contexts/YouTubeContext';
 import {
     getLibraryContent,
     deleteFromLibrary,
     toggleFavorite as toggleFavoriteDB,
     searchLibrary,
+    getHistory,
+    deleteFromHistory,
 } from '../lib/indexedDB';
 
 export default function LibraryPage() {
+    const navigate = useNavigate();
+    const { setActiveVideo, clearVideo } = useYouTube();
     const [content, setContent] = useState([]);
+    const [historyItems, setHistoryItems] = useState([]);
     const [filteredContent, setFilteredContent] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterMode, setFilterMode] = useState('all'); // 'all' | 'favorites'
+    const [filterMode, setFilterMode] = useState('all'); // 'all' | 'favorites' | 'history'
     const [selectedBook, setSelectedBook] = useState(null);
-    const { loadTrack, playTrack, setOnMusicStart } = usePlayerStore();
+    const { loadTrack, playTrack, setOnMusicStart, clearTrack } = usePlayerStore();
+
+    // Callback to close book player when music OR YouTube starts
+    const handleCloseBookPlayerCallback = () => {
+        ttsService.stop();
+        setSelectedBook(null);
+    };
 
     useEffect(() => {
         loadLibrary();
@@ -31,11 +44,7 @@ export default function LibraryPage() {
 
     // Register callback to close book player when music starts
     useEffect(() => {
-        setOnMusicStart(() => {
-            // Close book player modal
-            ttsService.stop();
-            setSelectedBook(null);
-        });
+        setOnMusicStart(handleCloseBookPlayerCallback);
         return () => setOnMusicStart(null);
     }, []);
 
@@ -44,6 +53,10 @@ export default function LibraryPage() {
         try {
             const libraryContent = await getLibraryContent();
             setContent(libraryContent);
+
+            // Also load history
+            const history = await getHistory();
+            setHistoryItems(history);
         } catch (error) {
             console.error('Failed to load library:', error);
         } finally {
@@ -52,6 +65,18 @@ export default function LibraryPage() {
     };
 
     const applyFilters = async () => {
+        // If history tab is selected, show history items instead
+        if (filterMode === 'history') {
+            setFilteredContent(historyItems.map(item => ({
+                ...item,
+                videoId: item.videoId,
+                type: 'youtube-history',
+                thumbnail_url: item.thumbnail,
+                channel_name: item.channel,
+            })));
+            return;
+        }
+
         let filtered = [...content];
 
         // Apply search
@@ -69,11 +94,33 @@ export default function LibraryPage() {
     };
 
     const handlePlay = (item) => {
+        // If it's a YouTube history item, set active video (plays in persistent player)
+        if (item.type === 'youtube-history') {
+            // Stop any playing music when YouTube video starts
+            clearTrack();
+            // Close book player if open
+            handleCloseBookPlayerCallback();
+            setActiveVideo({
+                videoId: item.videoId,
+                title: item.title,
+                channel: item.channel,
+                thumbnail: item.thumbnail,
+                url: item.url,
+            });
+            return;
+        }
+
         // If it's a book, open BookPlayer modal
         if (item.type === 'book') {
+            // Stop YouTube and music when book starts
+            clearVideo();
+            clearTrack();
             setSelectedBook(item);
             return;
         }
+
+        // For music/audio tracks: Stop YouTube video if it's playing (mutual exclusivity)
+        clearVideo();
 
         // Convert library item to track format
         const track = {
@@ -82,7 +129,7 @@ export default function LibraryPage() {
             description: item.description,
             channel_name: item.channel_name,
             thumbnail_url: item.thumbnail_url,
-            stream_url: item.stream_url,
+            stream_url: item.stream_url || item.source_url, // Include stream_url for music files
             source_url: item.source_url,
             type: item.type,
             mode: item.mode,
@@ -98,9 +145,15 @@ export default function LibraryPage() {
         }, 100);
     };
 
-    const handleDelete = async (videoId) => {
+    const handleDelete = async (videoId, item) => {
         try {
-            await deleteFromLibrary(videoId);
+            // If it's a history item, delete from history table
+            if (item?.type === 'youtube-history') {
+                await deleteFromHistory(item.id);
+            } else {
+                // Delete from library
+                await deleteFromLibrary(videoId);
+            }
             // Refresh library
             await loadLibrary();
         } catch (error) {
@@ -160,6 +213,16 @@ export default function LibraryPage() {
                         <Heart size={18} fill={filterMode === 'favorites' ? 'currentColor' : 'none'} />
                         Favorites
                     </button>
+                    <button
+                        onClick={() => setFilterMode('history')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${filterMode === 'history'
+                            ? 'bg-purple-500 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white'
+                            }`}
+                    >
+                        <Clock size={18} />
+                        History
+                    </button>
                 </div>
             </div>
 
@@ -179,11 +242,13 @@ export default function LibraryPage() {
             <StorageMeter />
 
             {/* Stats */}
-            {!loading && content.length > 0 && (
+            {!loading && (content.length > 0 || historyItems.length > 0) && (
                 <div className="flex gap-4 text-sm text-gray-400">
-                    <span>{content.length} total items</span>
+                    <span>{content.length} library items</span>
                     <span>•</span>
                     <span>{content.filter(item => item.is_favorite).length} favorites</span>
+                    <span>•</span>
+                    <span>{historyItems.length} history items</span>
                     {searchQuery && (
                         <>
                             <span>•</span>
@@ -197,7 +262,10 @@ export default function LibraryPage() {
             <LibraryGrid
                 content={filteredContent}
                 onPlay={handlePlay}
-                onDelete={handleDelete}
+                onDelete={(videoId) => {
+                    const item = filteredContent.find(i => i.videoId === videoId || i.id === videoId);
+                    handleDelete(videoId, item);
+                }}
                 onToggleFavorite={handleToggleFavorite}
                 loading={loading}
             />

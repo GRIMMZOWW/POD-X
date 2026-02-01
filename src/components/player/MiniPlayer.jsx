@@ -6,11 +6,13 @@ export default function MiniPlayer() {
     const {
         currentTrack,
         isPlaying,
+        isLoading,
         currentTime,
         duration,
         togglePlay,
         seekTo,
-        clearTrack
+        clearTrack,
+        loadTrack
     } = usePlayerStore();
 
     const [isDragging, setIsDragging] = useState(false);
@@ -84,6 +86,12 @@ export default function MiniPlayer() {
                     <p className="text-gray-400 text-xs truncate">
                         {currentTrack.channel_name || currentTrack.artist}
                     </p>
+                    {isLoading && currentTrack.type === 'youtube' && (
+                        <p className="text-yellow-400 text-xs mt-1 flex items-center gap-1">
+                            <span className="inline-block w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></span>
+                            Extracting fresh URL...
+                        </p>
+                    )}
                 </div>
 
                 <div className="hidden md:flex flex-1 items-center gap-3 min-w-[200px]">
@@ -115,12 +123,19 @@ export default function MiniPlayer() {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={togglePlay}
-                        className="w-10 h-10 rounded-full bg-[#6B46C1] hover:bg-[#7c4ddb] 
+                        disabled={isLoading}
+                        className={`w-10 h-10 rounded-full bg-[#6B46C1] hover:bg-[#7c4ddb] 
                      text-white flex items-center justify-center transition-colors
                      focus:outline-none focus:ring-2 focus:ring-[#6B46C1] focus:ring-offset-2 
-                     focus:ring-offset-[#1E1E1E]"
+                     focus:ring-offset-[#1E1E1E] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : isPlaying ? (
+                            <Pause size={20} fill="currentColor" />
+                        ) : (
+                            <Play size={20} fill="currentColor" className="ml-1" />
+                        )}
                     </button>
 
                     <button

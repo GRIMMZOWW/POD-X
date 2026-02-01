@@ -8,12 +8,39 @@ const bookRoutes = require('./routes/book');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// CORS Configuration
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'https://pod-x-frontend.vercel.app', // Add your Vercel domain
+    process.env.FRONTEND_URL, // From environment variable
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production' ? true : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173'],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, Postman, or same-origin)
+        if (!origin) return callback(null, true);
+
+        // In production, allow all origins temporarily for debugging
+        // TODO: Restrict this to specific domains in production
+        if (process.env.NODE_ENV === 'production') {
+            return callback(null, true);
+        }
+
+        // In development, check against whitelist
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS blocked origin: ${origin}`);
+            callback(null, true); // Allow anyway for now
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true,
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -61,7 +88,6 @@ app.listen(PORT, () => {
     console.log(`🚀 POD-X Backend Server`);
     console.log(`📡 Running on: http://localhost:${PORT}`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🎵 YouTube Mode: ${process.env.YOUTUBE_MODE || 'ytdlp'}`);
     console.log('='.repeat(50));
 });
 
