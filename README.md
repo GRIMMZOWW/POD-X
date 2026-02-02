@@ -5,7 +5,12 @@ A mobile-first audio streaming application with YouTube integration, built with 
 ## Features
 
 - 🎵 **YouTube Audio Streaming** - Stream audio from YouTube videos
-- 📚 **Library Management** - Save and organize your streamed content
+- 🎼 **Music Upload** - Upload your own MP3/WAV files
+- 📚 **Book Reader** - Upload PDF/EPUB books with Text-to-Speech (TTS)
+- 🔄 **Synchronized Playback** - Book mini player and main player share state (Spotify-like experience)
+- 🎯 **One Media at a Time** - Books, music, and YouTube mutually exclusive playback
+- 💾 **Auto-Save** - Book positions save automatically (on navigation, browser close, every 10s)
+- 📚 **Library Management** - Save and organize all your content (music, books, videos)
 - 🎨 **Dark Theme** - Beautiful dark UI (#121212 background)
 - 🔐 **Authentication** - Secure login with Supabase Auth
 - 💾 **Offline Storage** - IndexedDB for local library
