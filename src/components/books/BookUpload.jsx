@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Book, Upload, X, Check, AlertCircle, FileText } from 'lucide-react';
 import { saveToLibrary } from '../../lib/indexedDB';
 import { processBookFile } from '../../lib/pdfExtractor';
+import { useToast } from '../../contexts/ToastContext';
 
 export default function BookUpload() {
+    const toast = useToast();
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
@@ -114,6 +116,7 @@ export default function BookUpload() {
 
             if (successCount > 0) {
                 setSuccess(`Successfully uploaded ${successCount} book(s)`);
+                toast.success(`${successCount} book(s) added to library!`);
                 setSelectedFiles([]);
 
                 // Clear success message after 3 seconds
@@ -123,11 +126,13 @@ export default function BookUpload() {
             if (failedFiles.length > 0) {
                 const errorMsg = `Failed to process ${failedFiles.length} file(s): ${failedFiles.map(f => f.name).join(', ')}`;
                 setError(errorMsg);
+                toast.error(`Failed to process ${failedFiles.length} file(s)`);
             }
 
         } catch (err) {
             console.error('[BookUpload] Error:', err);
             setError(err.message || 'Failed to upload books');
+            toast.error('Upload failed. Please try again.');
         } finally {
             setUploading(false);
         }

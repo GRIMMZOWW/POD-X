@@ -5,17 +5,36 @@ import usePlayerStore from '../../store/playerStore';
 import { saveReadingPosition, getReadingPosition } from '../../lib/indexedDB';
 import ResumePrompt from './ResumePrompt';
 import SleepTimer from './SleepTimer';
+import { useBook } from '../../contexts/BookContext';
+import { useYouTube } from '../../contexts/YouTubeContext';
 
 export default function BookPlayer({ book }) {
-    const [isReading, setIsReading] = useState(false);
-    const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
-    const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
-    const [totalSentences, setTotalSentences] = useState(0);
-    const [currentSentence, setCurrentSentence] = useState('');
-    const [chapters, setChapters] = useState([]);
+    const { clearVideo } = useYouTube();
+
+    // Use shared context state
+    const {
+        playbackState,
+        setIsPlaying,
+        setCurrentChapter,
+        setCurrentSentence,
+        setTotalSentences,
+        updatePlaybackState
+    } = useBook();
+
+    // Destructure shared state
+    const {
+        isPlaying,
+        currentChapterIndex,
+        currentSentenceIndex,
+        totalSentences,
+        chapters,
+        selectedVoice,
+        readingSpeed
+    } = playbackState;
+
+    // Local UI state
+    const [currentSentenceText, setCurrentSentenceText] = useState('');
     const [voices, setVoices] = useState([]);
-    const [selectedVoice, setSelectedVoice] = useState(null);
-    const [readingSpeed, setReadingSpeed] = useState(1.0);
     const [showSettings, setShowSettings] = useState(false);
     const [showResumePrompt, setShowResumePrompt] = useState(false);
     const [savedPosition, setSavedPosition] = useState(null);
@@ -27,44 +46,15 @@ export default function BookPlayer({ book }) {
     const autoSaveInterval = useRef(null);
     const sleepTimerInterval = useRef(null);
     const originalVolume = useRef(1.0);
+    const hasCheckedPosition = useRef(false); // Track if we've already checked for saved position
 
-    // Load book data
+    // Load voices
     useEffect(() => {
-        const loadBookData = async () => {
-            try {
-                console.log('[BookPlayer] Loading book:', book);
-                console.log('[BookPlayer] Book metadata:', book.metadata);
-
-                // Chapters are now stored directly in book metadata
-                if (book.metadata?.chapters && Array.isArray(book.metadata.chapters)) {
-                    console.log('[BookPlayer] Found chapters:', book.metadata.chapters.length);
-                    setChapters(book.metadata.chapters);
-                } else {
-                    console.error('[BookPlayer] No chapters found in book metadata');
-                    console.error('[BookPlayer] Available metadata keys:', Object.keys(book.metadata || {}));
-
-                    // Fallback: create a single chapter from the book
-                    setChapters([{
-                        index: 0,
-                        title: 'Full Book',
-                        text: 'No chapters detected. Please re-upload the book.',
-                        startPosition: 0
-                    }]);
-                }
-            } catch (error) {
-                console.error('[BookPlayer] Failed to load book data:', error);
-                setChapters([]);
-            }
-        };
-
-        loadBookData();
-
-        // Load voices
         const loadVoices = () => {
             const availableVoices = ttsService.getEnglishVoices();
             setVoices(availableVoices);
-            if (availableVoices.length > 0) {
-                setSelectedVoice(availableVoices[0]);
+            if (availableVoices.length > 0 && !selectedVoice) {
+                updatePlaybackState({ selectedVoice: availableVoices[0] });
             }
         };
 
@@ -74,25 +64,40 @@ export default function BookPlayer({ book }) {
         } else {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
-    }, [book]);
+    }, [selectedVoice, updatePlaybackState]);
 
-    // Check for saved reading position
+    // Check for saved reading position - ONLY ONCE on mount, not during playback
     useEffect(() => {
         const checkSavedPosition = async () => {
-            if (book && chapters.length > 0) {
-                const position = await getReadingPosition(book.id);
-                if (position) {
-                    setSavedPosition(position);
-                    setShowResumePrompt(true);
-                }
+            // Only check once when component first mounts
+            if (hasCheckedPosition.current || !book || chapters.length === 0) {
+                return;
             }
+
+            // Skip resume prompt if already playing OR if context has active playback state
+            const isAlreadyPlaying = ttsService.isSpeaking();
+            const hasActivePlayback = currentSentenceIndex > 0 || currentChapterIndex > 0;
+
+            if (isAlreadyPlaying || hasActivePlayback) {
+                console.log('[BookPlayer] Playback already active, skipping resume prompt');
+                hasCheckedPosition.current = true; // Mark as checked
+                return;
+            }
+
+            const position = await getReadingPosition(book.id);
+            if (position) {
+                setSavedPosition(position);
+                setShowResumePrompt(true);
+            }
+
+            hasCheckedPosition.current = true; // Mark as checked
         };
         checkSavedPosition();
-    }, [book, chapters]);
+    }, [book, chapters.length]); // Only depend on book and chapters.length, NOT on current indices
 
     // Auto-save reading position every 10 seconds
     useEffect(() => {
-        if (isReading && book) {
+        if (isPlaying && book) {
             // Clear any existing interval
             if (autoSaveInterval.current) {
                 clearInterval(autoSaveInterval.current);
@@ -111,41 +116,82 @@ export default function BookPlayer({ book }) {
                 if (autoSaveInterval.current) {
                     clearInterval(autoSaveInterval.current);
                 }
+                // Save one last time when stopping
+                if (book) {
+                    saveReadingPosition(book.id, {
+                        chapterIndex: currentChapterIndex,
+                        sentenceIndex: currentSentenceIndex
+                    });
+                }
             };
         }
-    }, [isReading, book, currentChapterIndex, currentSentenceIndex]);
+    }, [isPlaying, book, currentChapterIndex, currentSentenceIndex]);
+
+    // Save position when navigating away or closing tab/browser
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (book && (currentSentenceIndex > 0 || currentChapterIndex > 0)) {
+                console.log('[BookPlayer] Saving position on page unload');
+                saveReadingPosition(book.id, {
+                    chapterIndex: currentChapterIndex,
+                    sentenceIndex: currentSentenceIndex
+                });
+            }
+        };
+
+        // Save on browser close/refresh
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('unload', handleBeforeUnload);
+
+        // Save when component unmounts (navigating to another page)
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener('unload', handleBeforeUnload);
+
+            // Save position on component unmount
+            if (book && (currentSentenceIndex > 0 || currentChapterIndex > 0)) {
+                console.log('[BookPlayer] Saving position on component unmount');
+                saveReadingPosition(book.id, {
+                    chapterIndex: currentChapterIndex,
+                    sentenceIndex: currentSentenceIndex
+                });
+            }
+        };
+    }, [book, currentChapterIndex, currentSentenceIndex]);
 
     // Set up TTS callbacks
     useEffect(() => {
         ttsService.setCallbacks({
             onSentenceStart: (index, sentence, total) => {
-                setCurrentSentenceIndex(index);
-                setCurrentSentence(sentence);
+                setCurrentSentence(index);
+                setCurrentSentenceText(sentence);
                 if (total) setTotalSentences(total);
             },
             onSentenceEnd: (index, sentence) => {
                 // Sentence completed
             },
             onComplete: () => {
-                setIsReading(false);
-                setCurrentSentenceIndex(0);
+                setIsPlaying(false);
+                setCurrentSentence(0);
                 // Auto-advance to next chapter
                 if (currentChapterIndex < chapters.length - 1) {
-                    setCurrentChapterIndex(prev => prev + 1);
+                    setCurrentChapter(currentChapterIndex + 1);
                 }
             }
         });
-    }, [currentChapterIndex, chapters.length]);
+    }, [currentChapterIndex, chapters.length, setIsPlaying, setCurrentSentence, setTotalSentences, setCurrentChapter]);
+
+    // No need for book-seek event listener - both players use shared context
 
     // Auto-scroll to current sentence
     useEffect(() => {
-        if (isReading && sentenceRefs.current[currentSentenceIndex]) {
+        if (isPlaying && sentenceRefs.current[currentSentenceIndex]) {
             sentenceRefs.current[currentSentenceIndex].scrollIntoView({
                 behavior: 'smooth',
                 block: 'center'
             });
         }
-    }, [currentSentenceIndex, isReading]);
+    }, [currentSentenceIndex, isPlaying]);
 
     // Sleep timer countdown
     useEffect(() => {
@@ -198,10 +244,10 @@ export default function BookPlayer({ book }) {
     }, [sleepTimerActive, sleepTimerEnd, book, currentChapterIndex, currentSentenceIndex]);
 
     const handlePlayPause = () => {
-        if (isReading) {
+        if (isPlaying) {
             // Stop instead of pause to prevent interrupted errors
             ttsService.stop();
-            setIsReading(false);
+            setIsPlaying(false);
             // Save position when pausing
             if (book) {
                 saveReadingPosition(book.id, {
@@ -220,6 +266,9 @@ export default function BookPlayer({ book }) {
                 clearTrack();
             }
 
+            // Stop YouTube video if playing
+            clearVideo();
+
             // Start reading current chapter from current position
             if (chapters[currentChapterIndex]) {
                 ttsService.speak(chapters[currentChapterIndex].text, {
@@ -227,15 +276,15 @@ export default function BookPlayer({ book }) {
                     rate: readingSpeed,
                     startIndex: currentSentenceIndex // Resume from current position
                 });
-                setIsReading(true);
+                setIsPlaying(true);
             }
         }
     };
 
     const handleStop = () => {
         ttsService.stop();
-        setIsReading(false);
-        setCurrentSentenceIndex(0);
+        setIsPlaying(false);
+        setCurrentSentence(0);
         // Save position when stopping
         if (book) {
             saveReadingPosition(book.id, {
@@ -247,24 +296,51 @@ export default function BookPlayer({ book }) {
 
     // Resume from saved position
     const handleResume = () => {
-        if (savedPosition) {
-            setCurrentChapterIndex(savedPosition.chapterIndex);
-            setCurrentSentenceIndex(savedPosition.sentenceIndex);
-        }
         setShowResumePrompt(false);
+
+        if (savedPosition && chapters[savedPosition.chapterIndex]) {
+            // Set the position in context
+            setCurrentChapter(savedPosition.chapterIndex);
+            setCurrentSentence(savedPosition.sentenceIndex);
+
+            // Start playing from saved position
+            setTimeout(() => {
+                ttsService.speak(chapters[savedPosition.chapterIndex].text, {
+                    voice: selectedVoice,
+                    rate: readingSpeed,
+                    startIndex: savedPosition.sentenceIndex
+                });
+                setIsPlaying(true);
+            }, 100);
+        }
     };
 
     // Start from beginning
     const handleStartOver = () => {
-        setCurrentChapterIndex(0);
-        setCurrentSentenceIndex(0);
         setShowResumePrompt(false);
+
+        // Reset position
+        setCurrentChapter(0);
+        setCurrentSentence(0);
+
         // Clear saved position
         if (book) {
             saveReadingPosition(book.id, {
                 chapterIndex: 0,
                 sentenceIndex: 0
             });
+        }
+
+        // Start playing from beginning
+        if (chapters[0]) {
+            setTimeout(() => {
+                ttsService.speak(chapters[0].text, {
+                    voice: selectedVoice,
+                    rate: readingSpeed,
+                    startIndex: 0
+                });
+                setIsPlaying(true);
+            }, 100);
         }
     };
 
@@ -292,29 +368,29 @@ export default function BookPlayer({ book }) {
     const handlePreviousChapter = () => {
         if (currentChapterIndex > 0) {
             handleStop();
-            setCurrentChapterIndex(prev => prev - 1);
+            setCurrentChapter(currentChapterIndex - 1);
         }
     };
 
     const handleNextChapter = () => {
         if (currentChapterIndex < chapters.length - 1) {
             handleStop();
-            setCurrentChapterIndex(prev => prev + 1);
+            setCurrentChapter(currentChapterIndex + 1);
         }
     };
 
     const handleChapterSelect = (index) => {
         handleStop();
-        setCurrentChapterIndex(index);
+        setCurrentChapter(index);
     };
 
     const handleVoiceChange = (e) => {
         const voice = voices.find(v => v.name === e.target.value);
-        setSelectedVoice(voice);
+        updatePlaybackState({ selectedVoice: voice });
     };
 
     const handleSpeedChange = (e) => {
-        setReadingSpeed(parseFloat(e.target.value));
+        updatePlaybackState({ readingSpeed: parseFloat(e.target.value) });
     };
 
     if (chapters.length === 0) {
@@ -384,7 +460,7 @@ export default function BookPlayer({ book }) {
                         const percentage = (x / rect.width) * 100;
                         const targetSentence = Math.floor((percentage / 100) * totalSentences);
                         if (targetSentence >= 0 && targetSentence < totalSentences) {
-                            const wasPlaying = isReading;
+                            const wasPlaying = isPlaying;
                             handleStop();
 
                             // Resume playback if it was playing before
@@ -396,12 +472,12 @@ export default function BookPlayer({ book }) {
                                             rate: readingSpeed,
                                             startIndex: targetSentence
                                         });
-                                        setIsReading(true);
+                                        setIsPlaying(true);
                                     }
                                 }, 100);
                             } else {
                                 // Only update position if not playing
-                                setCurrentSentenceIndex(targetSentence);
+                                setCurrentSentence(targetSentence);
                             }
                         }
                     }}
@@ -427,7 +503,7 @@ export default function BookPlayer({ book }) {
                     onClick={handlePlayPause}
                     className="p-4 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors"
                 >
-                    {isReading ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
                 </button>
 
                 <button
@@ -524,7 +600,7 @@ export default function BookPlayer({ book }) {
                         <span
                             key={index}
                             ref={(el) => (sentenceRefs.current[index] = el)}
-                            className={`${index === currentSentenceIndex && isReading
+                            className={`${index === currentSentenceIndex && isPlaying
                                 ? 'bg-blue-500/30 text-white font-medium px-1 rounded'
                                 : ''
                                 }`}
@@ -550,7 +626,7 @@ export default function BookPlayer({ book }) {
                         >
                             <div className="flex items-center justify-between">
                                 <span className="font-medium">{chapter.title}</span>
-                                {index === currentChapterIndex && isReading && (
+                                {index === currentChapterIndex && isPlaying && (
                                     <Volume2 size={16} className="text-blue-400 animate-pulse" />
                                 )}
                             </div>

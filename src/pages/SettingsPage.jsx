@@ -3,10 +3,12 @@ import { Settings, User, Volume2, Palette, HardDrive, Info, LogOut, Trash2 } fro
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getStorageInfo, clearAllData } from '../lib/indexedDB';
+import { useToast } from '../contexts/ToastContext';
 
 export default function SettingsPage() {
     const { user, signOut } = useAuth();
     const navigate = useNavigate();
+    const toast = useToast();
     const [storageInfo, setStorageInfo] = useState(null);
     const [playbackSettings, setPlaybackSettings] = useState({
         autoPlay: true,
@@ -72,10 +74,10 @@ export default function SettingsPage() {
             await clearAllData();
             setShowClearConfirm(false);
             updateStorageInfo();
-            alert('All data cleared successfully!');
+            toast.success('All data cleared successfully!');
         } catch (error) {
             console.error('Failed to clear data:', error);
-            alert('Failed to clear data. Please try again.');
+            toast.error('Failed to clear data. Please try again.');
         }
     };
 
@@ -234,8 +236,8 @@ export default function SettingsPage() {
                             <button
                                 onClick={handleClearData}
                                 className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors ${showClearConfirm
-                                        ? 'bg-red-500 text-white hover:bg-red-600'
-                                        : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                                    ? 'bg-red-500 text-white hover:bg-red-600'
+                                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
                                     }`}
                             >
                                 <Trash2 className="w-4 h-4" />

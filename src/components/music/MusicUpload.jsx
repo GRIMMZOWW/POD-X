@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Music, Upload, X, Check, AlertCircle } from 'lucide-react';
 import Dexie from 'dexie';
+import { useToast } from '../../contexts/ToastContext';
 
 // Simple dedicated database for music files
 const musicDB = new Dexie('POD-X-Music');
@@ -10,6 +11,7 @@ musicDB.version(1).stores({
 });
 
 export default function MusicUpload() {
+    const toast = useToast();
     const [files, setFiles] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [errors, setErrors] = useState([]);
@@ -114,16 +116,19 @@ export default function MusicUpload() {
 
             if (successCount > 0) {
                 setSuccess(`✓ ${successCount} file(s) uploaded successfully!`);
+                toast.success(`${successCount} music file(s) added to library!`);
                 setFiles([]);
             }
 
             if (failedFiles.length > 0) {
                 setErrors(failedFiles.map(f => `${f.name}: ${f.error}`));
+                toast.error(`${failedFiles.length} file(s) failed to upload`);
             }
 
         } catch (error) {
             console.error('[MusicUpload] Error:', error);
             setErrors([error.message]);
+            toast.error('Upload failed. Please try again.');
         } finally {
             setUploading(false);
         }
