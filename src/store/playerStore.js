@@ -130,6 +130,7 @@ const usePlayerStore = create((set, get) => ({
                     console.log('[PlayerStore] Playback started');
                     set({ isPlaying: true });
                     get().startProgressTracking();
+                    get().updateMediaSession(); // Show in notification
                 },
 
                 onpause: () => {
@@ -322,7 +323,69 @@ const usePlayerStore = create((set, get) => ({
         set({ repeat: nextMode });
         console.log(`[PlayerStore] Repeat mode: ${nextMode}`);
         return nextMode;
+    },
+
+    // Update notification with song info (Step 1: metadata only)
+    updateMediaSession: () => {
+        if (!('mediaSession' in navigator)) {
+            return;
+        }
+
+        const { currentTrack } = get();
+        if (!currentTrack) {
+            return;
+        }
+
+        try {
+            // Prepare artwork
+            let artwork = [];
+            if (currentTrack.thumbnail_url) {
+                const thumb = currentTrack.thumbnail_url;
+
+                // Use as-is if already full URL
+                if (thumb.startsWith('data:') || thumb.startsWith('blob:') || thumb.startsWith('http')) {
+                    artwork = [{ src: thumb, sizes: '512x512', type: 'image/jpeg' }];
+                } else {
+                    // Relative path
+                    artwork = [{ src: window.location.origin + thumb, sizes: '512x512', type: 'image/jpeg' }];
+                }
+            }
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentTrack.title || 'Unknown Track',
+                artist: currentTrack.artist || currentTrack.channel_name || 'Unknown Artist',
+                album: 'POD-X',
+                artwork: artwork
+            });
+
+            console.log('[PlayerStore] Notification updated:', currentTrack.title);
+        } catch (error) {
+            console.error('[PlayerStore] Notification error:', error);
+        }
     }
 }));
 
 export default usePlayerStore;
+
+// Step 3-4: Register Media Session action handlers (after store creation)
+if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', () => {
+        const store = usePlayerStore.getState();
+        store.playTrack();
+    });
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+        const store = usePlayerStore.getState();
+        store.pauseTrack();
+    });
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const store = usePlayerStore.getState();
+        store.playNext();
+    });
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+        const store = usePlayerStore.getState();
+        store.playPrevious();
+    });
+}
