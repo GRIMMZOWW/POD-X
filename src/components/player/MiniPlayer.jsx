@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import usePlayerStore from '../../store/playerStore';
-import { Play, Pause, Volume2, X } from 'lucide-react';
+import { Play, Pause, Volume2, X, SkipBack, SkipForward, Repeat, Repeat1 } from 'lucide-react';
 
 export default function MiniPlayer() {
     const {
@@ -12,7 +12,13 @@ export default function MiniPlayer() {
         togglePlay,
         seekTo,
         clearTrack,
-        loadTrack
+        loadTrack,
+        playNext,
+        playPrevious,
+        queue,
+        currentIndex,
+        repeat,
+        cycleRepeat
     } = usePlayerStore();
 
     const [isDragging, setIsDragging] = useState(false);
@@ -121,6 +127,15 @@ export default function MiniPlayer() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Previous Button */}
+                    <button
+                        onClick={playPrevious}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-full transition-all duration-200"
+                        title="Previous"
+                    >
+                        <SkipBack size={18} />
+                    </button>
+
                     <button
                         onClick={togglePlay}
                         disabled={isLoading}
@@ -137,6 +152,27 @@ export default function MiniPlayer() {
                         ) : (
                             <Play size={20} fill="currentColor" className="ml-1" />
                         )}
+                    </button>
+
+                    {/* Next Button */}
+                    <button
+                        onClick={playNext}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-full transition-all duration-200"
+                        title="Next"
+                    >
+                        <SkipForward size={18} />
+                    </button>
+
+                    {/* Repeat Button */}
+                    <button
+                        onClick={cycleRepeat}
+                        className={`p-2 rounded-full transition-all duration-200 ${repeat !== 'none'
+                                ? 'text-primary bg-primary/20'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                            }`}
+                        title={`Repeat: ${repeat}`}
+                    >
+                        {repeat === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
                     </button>
 
                     <button

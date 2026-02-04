@@ -14,6 +14,11 @@ const usePlayerStore = create((set, get) => ({
     isLoading: false,
     onMusicStartCallback: null,
 
+    // Queue system
+    queue: [],
+    currentIndex: -1,
+    repeat: 'none', // 'none', 'one', 'all'
+
     loadTrack: async (track) => {
         if (get().isLoading) return;
 
@@ -25,12 +30,32 @@ const usePlayerStore = create((set, get) => ({
             return;
         }
 
+        // Build queue from library if it doesn't exist yet
+        if (get().queue.length === 0 && track.type === 'music') {
+            try {
+                const { getLibraryContent } = await import('../lib/indexedDB');
+                const allItems = await getLibraryContent();
+                const musicTracks = allItems.filter(item => item.type === 'music');
+
+                if (musicTracks.length > 0) {
+                    const trackIndex = musicTracks.findIndex(t => t.id === track.id);
+                    set({
+                        queue: musicTracks,
+                        currentIndex: trackIndex !== -1 ? trackIndex : 0
+                    });
+                    console.log(`[PlayerStore] Built queue with ${musicTracks.length} tracks`);
+                }
+            } catch (error) {
+                console.error('[PlayerStore] Failed to build queue:', error);
+            }
+        }
+
         if (get().currentTrack?.id === track.id) {
             get().playTrack();
             return;
         }
 
-        set({ isLoading: true });
+        set({ isLoading: true, currentTime: 0 });
 
         // Stop TTS if it's playing
         ttsService.stop();
@@ -48,121 +73,109 @@ const usePlayerStore = create((set, get) => ({
             try {
                 globalHowler.stop();
                 globalHowler.unload();
-            } catch (e) { }
+            } catch (e) {
+                console.warn('[PlayerStore] Error unloading:', e);
+            }
             globalHowler = null;
         }
 
+        // Clear any existing progress tracking
         if (get().progressInterval) {
             clearInterval(get().progressInterval);
             set({ progressInterval: null });
         }
 
-        // Wait for cleanup
-        await new Promise(resolve => setTimeout(resolve, 100));
+        try {
+            const audioUrl = track.stream_url || track.source_url;
+            console.log('[PlayerStore] Loading track:', track.title);
+            console.log('[PlayerStore] Audio URL:', audioUrl);
 
-        // Get audio URL from track
-        // Note: YouTube videos now use iframe embed and don't go through this player
-        let audioUrl = track.stream_url || track.audio_url || track.audioUrl;
+            if (!audioUrl) {
+                throw new Error('No audio URL found in track');
+            }
 
-        // Handle uploaded music files with music:// protocol
-        if (audioUrl && audioUrl.startsWith('music://')) {
-            const musicId = audioUrl.replace('music://', '');
-            console.log('[PlayerStore] Loading uploaded music file:', musicId);
+            // Detect audio format from filename or default to mp3
+            let format = 'mp3';
+            if (track.title || track.filename) {
+                const filename = track.filename || track.title || '';
+                if (filename.endsWith('.m4a')) format = 'm4a';
+                else if (filename.endsWith('.wav')) format = 'wav';
+                else if (filename.endsWith('.ogg')) format = 'ogg';
+                else if (filename.endsWith('.flac')) format = 'flac';
+                else if (filename.endsWith('.aac')) format = 'aac';
+            }
+            console.log('[PlayerStore] Audio format:', format);
 
-            try {
-                // Dynamically import to avoid import issues
-                const { getMusicBlob } = await import('../components/music/MusicUpload');
-                const blob = await getMusicBlob(musicId);
+            globalHowler = new Howl({
+                src: [audioUrl],
+                format: [format], // Specify format explicitly
+                html5: true,
+                preload: true,
+                volume: get().volume,
 
-                console.log('[PlayerStore] Blob retrieved:', blob ? `${blob.size} bytes, type: ${blob.type}` : 'null');
+                onload: () => {
+                    console.log('[PlayerStore] Audio loaded successfully');
+                    set({
+                        duration: globalHowler.duration(),
+                        currentTrack: track,
+                        isLoading: false
+                    });
 
-                if (!blob) {
-                    console.error('[PlayerStore] Music file not found in database');
+                    if (globalHowler && !globalHowler.playing()) {
+                        globalHowler.play();
+                    }
+                },
+
+                onplay: () => {
+                    console.log('[PlayerStore] Playback started');
+                    set({ isPlaying: true });
+                    get().startProgressTracking();
+                },
+
+                onpause: () => {
+                    console.log('[PlayerStore] Playback paused');
+                    set({ isPlaying: false });
+                    get().stopProgressTracking();
+                },
+
+                onend: () => {
+                    console.log('[PlayerStore] Playback ended');
+                    set({ isPlaying: false, currentTime: 0 });
+                    get().stopProgressTracking();
+
+                    // Auto-play next track based on repeat mode
+                    const { repeat, playNext } = get();
+                    if (repeat === 'one') {
+                        console.log('[PlayerStore] Repeat One: Restarting track');
+                        if (globalHowler) {
+                            globalHowler.seek(0);
+                            globalHowler.play();
+                        }
+                    } else {
+                        console.log('[PlayerStore] Auto-playing next track');
+                        playNext();
+                    }
+                },
+
+                onloaderror: (id, error) => {
+                    console.error('[PlayerStore] Load error:', error);
                     set({ isLoading: false });
-                    alert('Music file not found. It may have been deleted.');
-                    return;
+                },
+
+                onplayerror: (id, error) => {
+                    console.error('[PlayerStore] Play error:', error);
                 }
+            });
 
-                // Create blob URL for Howler
-                audioUrl = URL.createObjectURL(blob);
-                console.log('[PlayerStore] Created blob URL for uploaded music:', audioUrl);
-            } catch (error) {
-                console.error('[PlayerStore] Error loading music blob:', error);
-                set({ isLoading: false });
-                alert(`Failed to load music file: ${error.message}`);
-                return;
-            }
-        }
-
-        console.log('[PlayerStore] Loading audio URL:', audioUrl);
-        console.log('[PlayerStore] Track type:', track.type);
-        console.log('[PlayerStore] Full track object:', track);
-
-        if (!audioUrl) {
-            console.error('[PlayerStore] No audio URL found in track!');
+        } catch (error) {
+            console.error('[PlayerStore] Error loading track:', error);
             set({ isLoading: false });
-            return;
         }
-
-        globalHowler = new Howl({
-            src: [audioUrl],
-            html5: true,
-            format: ['webm', 'mp4', 'mp3'],
-            autoplay: false,
-            preload: true,
-            volume: get().volume,
-
-            onload: () => {
-                console.log('[PlayerStore] Audio loaded successfully, duration:', globalHowler.duration());
-                set({
-                    duration: globalHowler.duration(),
-                    currentTrack: track,
-                    isLoading: false
-                });
-
-                if (globalHowler && !globalHowler.playing()) {
-                    console.log('[PlayerStore] Starting playback...');
-                    globalHowler.play();
-                }
-            },
-
-            onplay: () => {
-                console.log('[PlayerStore] Playback started');
-                set({ isPlaying: true });
-                get().startProgressTracking();
-            },
-
-            onpause: () => {
-                console.log('[PlayerStore] Playback paused');
-                set({ isPlaying: false });
-                get().stopProgressTracking();
-            },
-
-            onend: () => {
-                console.log('[PlayerStore] Playback ended');
-                set({ isPlaying: false, currentTime: 0 });
-                get().stopProgressTracking();
-            },
-
-            onloaderror: (id, error) => {
-                console.error('[PlayerStore] Load error:', error);
-                console.error('[PlayerStore] Failed URL:', audioUrl);
-                console.error('[PlayerStore] Track type:', track.type);
-                set({ isLoading: false });
-                alert('Failed to load audio. The audio source may be unavailable.');
-            },
-
-            onplayerror: (id, error) => {
-                console.error('[PlayerStore] Play error:', error);
-            }
-        });
     },
 
     playTrack: () => {
-        // Stop TTS if it's playing
         ttsService.stop();
 
-        // Notify that music is starting (to close book player)
         if (get().onMusicStartCallback) {
             get().onMusicStartCallback();
         }
@@ -193,9 +206,11 @@ const usePlayerStore = create((set, get) => ({
         }
     },
 
-    setVolume: (vol) => {
-        set({ volume: vol });
-        if (globalHowler) globalHowler.volume(vol);
+    setVolume: (volume) => {
+        if (globalHowler) {
+            globalHowler.volume(volume);
+        }
+        set({ volume });
     },
 
     startProgressTracking: () => {
@@ -237,6 +252,76 @@ const usePlayerStore = create((set, get) => ({
 
     setOnMusicStart: (callback) => {
         set({ onMusicStartCallback: callback });
+    },
+
+    // Safe playNext - supports repeat all mode
+    playNext: () => {
+        const { queue, currentIndex, loadTrack, repeat } = get();
+
+        if (queue.length === 0) {
+            console.log('[PlayerStore] No queue - cannot play next');
+            return;
+        }
+
+        let nextIndex = currentIndex + 1;
+
+        // Handle end of queue
+        if (nextIndex >= queue.length) {
+            if (repeat === 'all') {
+                console.log('[PlayerStore] Repeat All: Looping to first track');
+                nextIndex = 0;
+            } else {
+                console.log('[PlayerStore] End of queue - stopping');
+                return;
+            }
+        }
+
+        const nextTrack = queue[nextIndex];
+        if (nextTrack) {
+            set({ currentIndex: nextIndex });
+            loadTrack(nextTrack);
+        }
+    },
+
+    // Safe playPrevious - restarts or goes back
+    playPrevious: () => {
+        const { queue, currentIndex, currentTime, seekTo, loadTrack } = get();
+
+        // If > 3 seconds, just restart current track
+        if (currentTime > 3) {
+            seekTo(0);
+            return;
+        }
+
+        if (queue.length === 0) {
+            console.log('[PlayerStore] No queue - restarting track');
+            seekTo(0);
+            return;
+        }
+
+        const prevIndex = currentIndex - 1;
+        if (prevIndex < 0) {
+            console.log('[PlayerStore] Start of queue - restarting track');
+            seekTo(0);
+            return;
+        }
+
+        const prevTrack = queue[prevIndex];
+        if (prevTrack) {
+            set({ currentIndex: prevIndex });
+            loadTrack(prevTrack);
+        }
+    },
+
+    // Cycle through repeat modes: none -> one -> all -> none
+    cycleRepeat: () => {
+        const { repeat } = get();
+        const modes = ['none', 'one', 'all'];
+        const currentIdx = modes.indexOf(repeat);
+        const nextMode = modes[(currentIdx + 1) % modes.length];
+        set({ repeat: nextMode });
+        console.log(`[PlayerStore] Repeat mode: ${nextMode}`);
+        return nextMode;
     }
 }));
 
