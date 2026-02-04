@@ -220,8 +220,11 @@ const usePlayerStore = create((set, get) => ({
         const interval = setInterval(() => {
             if (globalHowler && globalHowler.playing()) {
                 set({ currentTime: globalHowler.seek() });
+
+                // Update notification progress bar every second
+                get().updateMediaSession();
             }
-        }, 250);
+        }, 1000); // Update every second
 
         set({ progressInterval: interval });
     },
@@ -331,7 +334,7 @@ const usePlayerStore = create((set, get) => ({
             return;
         }
 
-        const { currentTrack } = get();
+        const { currentTrack, isPlaying, duration, currentTime } = get();
         if (!currentTrack) {
             return;
         }
@@ -357,6 +360,18 @@ const usePlayerStore = create((set, get) => ({
                 album: 'POD-X',
                 artwork: artwork
             });
+
+            // Set playback state
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+            // Set position (syncs progress bar)
+            if ('setPositionState' in navigator.mediaSession && duration > 0) {
+                navigator.mediaSession.setPositionState({
+                    duration: duration,
+                    playbackRate: 1.0,
+                    position: Math.max(0, Math.min(currentTime, duration))
+                });
+            }
 
             console.log('[PlayerStore] Notification updated:', currentTrack.title);
         } catch (error) {
