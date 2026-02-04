@@ -90,15 +90,15 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="text-center">
-                <h2 className="text-2xl font-bold mb-2">Settings</h2>
+            <div className="text-center animate-slide-up">
+                <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">Settings</h2>
                 <p className="text-gray-400">Customize your POD-X experience</p>
             </div>
 
             {/* Account Section */}
-            <div className="card space-y-4">
+            <div className="card space-y-4 animate-stagger-1">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-700">
                     <User className="w-5 h-5 text-purple-500" />
                     <h3 className="font-semibold">Account</h3>
@@ -130,7 +130,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Playback Settings */}
-            <div className="card space-y-4">
+            <div className="card space-y-4 animate-stagger-2">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-700">
                     <Volume2 className="w-5 h-5 text-blue-500" />
                     <h3 className="font-semibold">Playback</h3>
@@ -195,7 +195,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Appearance */}
-            <div className="card space-y-4">
+            <div className="card space-y-4 animate-stagger-3">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-700">
                     <Palette className="w-5 h-5 text-pink-500" />
                     <h3 className="font-semibold">Appearance</h3>
@@ -213,7 +213,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Storage */}
-            <div className="card space-y-4">
+            <div className="card space-y-4 animate-stagger-4">
                 <div className="flex items-center gap-3 pb-3 border-b border-gray-700">
                     <HardDrive className="w-5 h-5 text-green-500" />
                     <h3 className="font-semibold">Storage</h3>

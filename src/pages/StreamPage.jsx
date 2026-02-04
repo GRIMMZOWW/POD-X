@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Youtube } from 'lucide-react';
+import { Youtube, Sparkles } from 'lucide-react';
 import YouTubeInput from '../components/youtube/YouTubeInput';
 import { addToHistory } from '../lib/indexedDB';
 import { useYouTube } from '../contexts/YouTubeContext';
@@ -51,29 +51,51 @@ export default function StreamPage() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="text-center">
-                <h2 className="text-2xl font-bold mb-2">Stream Content</h2>
+            <div className="text-center animate-slide-up">
+                <div className="inline-flex items-center gap-2 mb-3">
+                    <Sparkles className="text-primary" size={28} />
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
+                        Stream Content
+                    </h2>
+                </div>
                 <p className="text-gray-400">Paste a YouTube URL to start streaming</p>
             </div>
 
             {/* YouTube input component */}
-            <YouTubeInput onVideoSelect={handleVideoSelect} />
+            <div className="animate-stagger-1">
+                <YouTubeInput onVideoSelect={handleVideoSelect} />
+            </div>
 
             {/* Info card - show when no video is playing */}
             {!activeVideo && (
-                <div className="card bg-surface-light">
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                        <Youtube size={20} className="text-primary" />
+                <div className="card bg-surface-light gradient-overlay animate-stagger-2">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
+                        <Youtube size={22} className="text-primary" />
                         How it works
                     </h3>
-                    <ul className="text-sm text-gray-400 space-y-1">
-                        <li>• Paste any YouTube URL above</li>
-                        <li>• Video plays instantly using YouTube's embedded player</li>
-                        <li>• Your viewing history is saved automatically</li>
-                        <li>• Navigate to other pages to see the mini player</li>
-                        <li>• Access your history from the Library page</li>
+                    <ul className="text-sm text-gray-400 space-y-2">
+                        <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>Paste any YouTube URL above</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>Video plays instantly using YouTube's embedded player</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>Your viewing history is saved automatically</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>Navigate to other pages to see the mini player</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>Access your history from the Library page</span>
+                        </li>
                     </ul>
                 </div>
             )}

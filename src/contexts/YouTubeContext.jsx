@@ -9,11 +9,17 @@ export function YouTubeProvider({ children }) {
     const setActiveVideo = useCallback((videoData) => {
         console.log('[YouTubeContext] Setting active video:', videoData);
 
-        // Stop book TTS if playing
+        // Stop book TTS AND clear the active book
         if (ttsService.isSpeaking()) {
             console.log('[YouTubeContext] Stopping book TTS');
             ttsService.stop();
         }
+
+        // Clear book from BookContext to hide mini player
+        import('../contexts/BookContext').then(({ useBook }) => {
+            // We can't use the hook here, so we'll dispatch a custom event
+            window.dispatchEvent(new CustomEvent('clearBook', { detail: { source: 'youtube' } }));
+        });
 
         // Stop music player if playing - use dynamic import to avoid circular dependency
         import('../store/playerStore').then(({ default: usePlayerStore }) => {

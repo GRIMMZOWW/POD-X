@@ -63,9 +63,9 @@ export default function MiniPlayer() {
     const progress = duration > 0 ? (displayTime / duration) * 100 : 0;
 
     return (
-        <div className="fixed bottom-16 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 p-4 z-50 shadow-2xl">
+        <div className="fixed bottom-16 left-0 right-0 glass border-t border-gray-800/50 p-4 z-50 shadow-2xl animate-slide-up">
             <div className="max-w-4xl mx-auto flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800">
+                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-800 shadow-lg">
                     {currentTrack.thumbnail_url ? (
                         <img
                             src={currentTrack.thumbnail_url}
@@ -124,10 +124,11 @@ export default function MiniPlayer() {
                     <button
                         onClick={togglePlay}
                         disabled={isLoading}
-                        className={`w-10 h-10 rounded-full bg-[#6B46C1] hover:bg-[#7c4ddb] 
-                     text-white flex items-center justify-center transition-colors
-                     focus:outline-none focus:ring-2 focus:ring-[#6B46C1] focus:ring-offset-2 
-                     focus:ring-offset-[#1E1E1E] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 hover:from-[#7c4ddb] hover:to-purple-700 
+                     text-white flex items-center justify-center transition-all duration-200
+                     focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 
+                     focus:ring-offset-background active:scale-95 ${isLoading ? 'opacity-50 cursor-not-allowed' : 'shadow-lg shadow-primary/30'
+                            } ${isPlaying ? 'animate-pulse shadow-primary/50' : ''}`}
                     >
                         {isLoading ? (
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -140,8 +141,8 @@ export default function MiniPlayer() {
 
                     <button
                         onClick={clearTrack}
-                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 
-                     rounded-full transition-colors ml-2"
+                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 
+                     rounded-full transition-all duration-200 ml-2"
                         title="Close player"
                     >
                         <X size={20} />

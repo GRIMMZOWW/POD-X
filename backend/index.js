@@ -23,18 +23,19 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps, Postman, or same-origin)
         if (!origin) return callback(null, true);
 
-        // In production, allow all origins temporarily for debugging
-        // TODO: Restrict this to specific domains in production
-        if (process.env.NODE_ENV === 'production') {
-            return callback(null, true);
-        }
-
-        // In development, check against whitelist
+        // Check against whitelist for both dev and production
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            console.warn(`CORS blocked origin: ${origin}`);
-            callback(null, true); // Allow anyway for now
+            // In development, allow unlisted origins with a warning
+            if (process.env.NODE_ENV !== 'production') {
+                console.warn(`CORS: Allowing unlisted origin in dev: ${origin}`);
+                callback(null, true);
+            } else {
+                // In production, reject origins not in whitelist
+                console.error(`CORS: Blocked unauthorized origin: ${origin}`);
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

@@ -63,6 +63,18 @@ export function BookProvider({ children }) {
         });
     }, [stopBookPlayback]);
 
+    // Listen for clearBook event from YouTube/Music
+    useEffect(() => {
+        const handleClearBook = (event) => {
+            console.log('[BookContext] Clearing book from external source:', event.detail?.source);
+            stopBookPlayback();
+            clearBook();
+        };
+
+        window.addEventListener('clearBook', handleClearBook);
+        return () => window.removeEventListener('clearBook', handleClearBook);
+    }, [stopBookPlayback, clearBook]);
+
     // Playback controls
     const updatePlaybackState = useCallback((updates) => {
         setPlaybackState(prev => ({ ...prev, ...updates }));

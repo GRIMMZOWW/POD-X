@@ -221,31 +221,31 @@ export default function LibraryPage() {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-fade-in">
             {/* Compact Header with Inline Filters */}
             <div className="space-y-3">
                 {/* Title */}
-                <h2 className="text-xl font-bold">Library</h2>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent animate-slide-up">Library</h2>
 
                 {/* Main Filters - Compact inline */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap animate-stagger-1">
                     <button
                         onClick={() => setFilterMode('all')}
-                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${filterMode === 'all'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-surface-light text-gray-400 hover:text-white'
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${filterMode === 'all'
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                            : 'bg-surface-light text-gray-400 hover:text-white hover:scale-105'
                             }`}
                     >
                         All Items
                     </button>
                     <button
                         onClick={() => setFilterMode('favorites')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${filterMode === 'favorites'
-                            ? 'bg-red-500 text-white'
-                            : 'bg-surface-light text-gray-400 hover:text-white'
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${filterMode === 'favorites'
+                            ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white shadow-lg shadow-red-500/30 scale-105'
+                            : 'bg-surface-light text-gray-400 hover:text-white hover:scale-105'
                             }`}
                     >
-                        <Heart size={14} fill={filterMode === 'favorites' ? 'currentColor' : 'none'} />
+                        <Heart size={14} fill={filterMode === 'favorites' ? 'currentColor' : 'none'} className="transition-transform duration-200" />
                         Favorites
                     </button>
                     <button
@@ -309,14 +309,14 @@ export default function LibraryPage() {
             </div>
 
             {/* Search bar */}
-            <div className="relative">
+            <div className="relative animate-stagger-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
                     placeholder="Search your library..."
-                    className="input w-full pl-10"
+                    className="input w-full pl-10 focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200"
                 />
             </div>
 
